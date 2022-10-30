@@ -20,3 +20,4 @@ target_include_directories("ia_proxy" PUBLIC "src")
 set_target_properties("ia_proxy" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_link_libraries("ia_proxy" PRIVATE Boost::system fmt::fmt OpenSSL::SSL)
 
+add_compile_definitions(BOOST_ASIO_HAS_CO_AWAIT)
