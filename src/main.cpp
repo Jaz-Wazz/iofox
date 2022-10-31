@@ -14,6 +14,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <httpfox.hpp>
+#include <utility>
 
 namespace asio = boost::asio;					// NOLINT
 namespace beast = boost::beast;					// NOLINT
@@ -49,22 +50,35 @@ asio::awaitable<void> listener()
 
 asio::awaitable<void> test()
 {
-	auto ctx = co_await this_coro::executor;
+	auto perform_http = [](auto host, auto & request, auto & response) -> asio::awaitable<void>
+	{
+		auto ctx = co_await this_coro::executor;
+		asio::ip::tcp::resolver resolver {ctx};
+		auto resolver_results = co_await resolver.async_resolve(host, "http", asio::use_awaitable);
+		asio::ip::tcp::socket sock {ctx};
+		co_await asio::async_connect(sock, resolver_results, asio::use_awaitable);
+		request.set("Host", host);
+		co_await beast::http::async_write(sock, request, asio::use_awaitable);
+		beast::flat_buffer buffer;
+		co_await beast::http::async_read(sock, buffer, response, asio::use_awaitable);
+	};
 
-	boost::asio::ip::tcp::resolver resolver {ctx};
-	auto resolver_results = co_await resolver.async_resolve("archive.org", "http", asio::use_awaitable);
+	auto take_item_location = [&](std::string path) -> asio::awaitable<std::pair<std::string, std::string>>
+	{
+		beast::http::request<beast::http::empty_body> request {beast::http::verb::get, path, 11};
+		beast::http::response<beast::http::string_body> response;
+		co_await perform_http("archive.org", request, response);
+		auto location = response.at("Location");
+		co_return std::make_pair(location.substr(7, location.find('/', 7) - 7), location.substr(location.find('/', 7)));
+	};
 
-	asio::ip::tcp::socket sock {ctx};
-	co_await asio::async_connect(sock, resolver_results, asio::use_awaitable);
+	auto [host, path] = co_await take_item_location("/download/stream_archive/main.html");
+	fmt::print("Location: [{}] + [{}].\n", host, path);
 
-	beast::http::request<beast::http::empty_body> request {beast::http::verb::get, "/download/stream_archive/main.html", 11};
-	request.set("Host", "archive.org");
-	co_await beast::http::async_write(sock, request, asio::use_awaitable);
-	std::cout << request << '\n';
-
-	beast::flat_buffer buffer;
+	beast::http::request<beast::http::empty_body> request {beast::http::verb::get, path, 11};
 	beast::http::response<beast::http::string_body> response;
-	co_await beast::http::async_read(sock, buffer, response, asio::use_awaitable);
+	co_await perform_http(host, request, response);
+	std::cout << request << '\n';
 	std::cout << response << '\n';
 }
 
