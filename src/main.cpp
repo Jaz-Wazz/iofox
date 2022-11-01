@@ -68,91 +68,48 @@ auto http_get_contents(std::string host, std::string path) -> asio::awaitable<st
 	if(response.result_int() == 200) co_return response.body(); else co_return std::unexpected(response.result_int());
 }
 
-auto session(beast::tcp_stream stream) -> asio::awaitable<void>
+auto session(beast::tcp_stream stream_user) -> asio::awaitable<void>
 {
-	// // Data.
-	// auto host = "ia902302.us.archive.org";
-	// auto path = "/22/items/1_20211016_20211016/1.png";
+	// Data.
+	auto host = "ia902302.us.archive.org";
+	auto path = "/22/items/1_20211016_20211016/1.png";
 
-	// // Connect to archive.
-	// auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
-	// asio::ip::tcp::socket sock_archive {co_await this_coro::executor};
-	// co_await asio::async_connect(sock_archive, resolver_results, asio::use_awaitable);
+	// Connect to archive.
+	auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
+	asio::ip::tcp::socket sock_archive {co_await this_coro::executor};
+	co_await asio::async_connect(sock_archive, resolver_results, asio::use_awaitable);
 
-	// // Send request to archive.
-	// beast::http::request<beast::http::empty_body> request_archive {beast::http::verb::get, path, 11};
-	// request_archive.set("Host", host);
-	// co_await beast::http::async_write(sock_archive, request_archive, asio::use_awaitable);
+	// Send request to archive.
+	beast::http::request<beast::http::empty_body> request_archive {beast::http::verb::get, path, 11};
+	request_archive.set("Host", host);
+	co_await beast::http::async_write(sock_archive, request_archive, asio::use_awaitable);
 
-	// // Read reasponse header from archive.
-	// beast::http::response_parser<beast::http::string_body> parser_archive_response;
-	// beast::flat_buffer buf;
-	// co_await beast::http::async_read_header(sock_archive, buf, parser_archive_response, asio::use_awaitable);
-	// std::cout << parser_archive_response.get() << '\n';
+	// Read response header from archive.
+	beast::http::response_parser<beast::http::string_body> parser_archive_response;
+	beast::flat_buffer buf;
+	co_await beast::http::async_read_header(sock_archive, buf, parser_archive_response, asio::use_awaitable);
+	std::cout << parser_archive_response.get() << '\n';
 
-	// // Install callback.
-	// auto callback = [](std::uint64_t remain, std::string_view body, beast::error_code & ec)
-	// {
-	// 	fmt::print("[callback] - Remain: '{};, Status: '{}'.\n", remain, ec.message());
-	// 	return 0;
-	// };
-
-	// // Incremental read response body from archive.
-	// while(!parser_archive_response.is_done())
-	// {
-	// 	auto bytes_readed = co_await beast::http::async_read_some(sock_archive, buf, parser_archive_response, asio::use_awaitable);
-	// 	parser_archive_response.get().body().clear();
-	// 	fmt::print("[reader] - read {} bytes, body peak {} bytes.\n", bytes_readed, body_peak);
-	// }
-
-	// beast::http::response<beast::http::string_body> response_user;
-	// response_user.body() = "sas";
-	// co_await beast::http::async_write(stream, response_user, asio::use_awaitable);
-
+	// Prepare user response data.
 	beast::http::response<beast::http::buffer_body> response_user;
 	beast::http::response_serializer<beast::http::buffer_body> serializer_user {response_user};
 
-	for(char c : "qwertyuiopasdfghjklzxcvbnm")
+	// Incremental read response body from archive.
+	while(!parser_archive_response.is_done())
 	{
-		response_user.body().data = &c;
-		response_user.body().size = 1;
-		fmt::print("[writer] - Write 1 byte '{}'.\n", c);
-		auto [err, bytes_writed] = co_await beast::http::async_write(stream, serializer_user, asio::as_tuple(asio::use_awaitable));
-		if(err == beast::http::error::need_buffer) fmt::print("[writer] - need buffer.\n");
+		auto bytes_readed = co_await beast::http::async_read_some(sock_archive, buf, parser_archive_response, asio::use_awaitable);
+		auto & data = parser_archive_response.get().body();
+		fmt::print("[reader] - read {} bytes.\n", bytes_readed);
+		response_user.body().data = data.data();
+		response_user.body().size = data.size();
+		auto [err, bytes_writed] = co_await beast::http::async_write(stream_user, serializer_user, asio::as_tuple(asio::use_awaitable));
 		if(err.failed() && err != beast::http::error::need_buffer) throw err;
-		Sleep(100);
+		fmt::print("[writer] - Write {} bytes.\n", bytes_writed);
+		data.clear();
 	}
 
-	/*
-	beast::http::response<beast::http::string_body> response_user;
-	response_user.body() = "hui";
-	beast::http::response_serializer<beast::http::string_body> serializer_user {response_user};
-	serializer_user.split(true);
-	// serializer_user.limit()
-
-	std::cout << response_user << '\n';
-
-	auto bytes_sended = co_await beast::http::async_write_some(stream, serializer_user, asio::use_awaitable);
-	fmt::print("[<--] Sended: '{}' bytes.\n", bytes_sended);
-
-	response_user.body() = "huiplusplus";
-	std::cout << response_user << '\n';
-
-	auto bytes_sended2 = co_await beast::http::async_write_some(stream, serializer_user, asio::use_awaitable);
-	fmt::print("[<--] Sended: '{}' bytes.\n", bytes_sended2);
-
-	response_user.body() = "huiplusplusjgw30r8hw349qp83hgq9pw3gte7iqw34egoiw3gh";
-	std::cout << response_user << '\n';
-
-	serializer_user.split(true);
-	auto bytes_sended3 = co_await beast::http::async_write_some(stream, serializer_user, asio::use_awaitable);
-	fmt::print("[<--] Sended: '{}' bytes.\n", bytes_sended3);
-
-	std::cout << response_user << '\n';
-	*/
-
 	// Close user connection.
-    stream.socket().shutdown(asio::ip::tcp::socket::shutdown_send);
+    stream_user.socket().shutdown(asio::ip::tcp::socket::shutdown_send);
 }
 
 auto listener() -> asio::awaitable<void>
