@@ -2,8 +2,10 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/connect.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -11,7 +13,10 @@
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http/buffer_body.hpp>
+#include <boost/beast/http/detail/type_traits.hpp>
+#include <boost/beast/http/dynamic_body.hpp>
 #include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/file_body.hpp>
 #include <boost/beast/http/impl/file_body_win32.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
@@ -19,19 +24,26 @@
 #include <boost/beast/http/serializer.hpp>
 #include <boost/beast/http/status.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/http/write.hpp>
 #include <chrono>
+#include <cstddef>
 #include <fmt/core.h>
+#include <functional>
 #include <iostream>
 #include <httpfox.hpp>
+#include <iterator>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <expected>
+#include <jaja_notation.hpp>
 
 namespace asio = boost::asio;					// NOLINT
 namespace beast = boost::beast;					// NOLINT
+namespace http = boost::beast::http;			// NOLINT
 namespace this_coro = boost::asio::this_coro;	// NOLINT
 
 auto perform_http(auto host, auto & request, auto & response) -> asio::awaitable<void>
@@ -60,56 +72,71 @@ auto take_archive_location(std::string path) -> asio::awaitable<std::expected<st
 	else co_return std::unexpected(response.result_int());
 }
 
-auto http_get_contents(std::string host, std::string path) -> asio::awaitable<std::expected<std::string, int>>
-{
-	beast::http::request<beast::http::empty_body> request {beast::http::verb::get, path, 11};
-	beast::http::response<beast::http::string_body> response;
-	co_await perform_http(host, request, response);
-	if(response.result_int() == 200) co_return response.body(); else co_return std::unexpected(response.result_int());
-}
-
 auto session(beast::tcp_stream stream_user) -> asio::awaitable<void>
 {
-	// Data.
-	auto host = "ia902302.us.archive.org";
-	auto path = "/22/items/1_20211016_20211016/1.png";
+	http::response<http::string_body> response;
+	http::response_serializer<http::string_body> serializer {response};
 
-	// Connect to archive.
-	auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
-	asio::ip::tcp::socket sock_archive {co_await this_coro::executor};
-	co_await asio::async_connect(sock_archive, resolver_results, asio::use_awaitable);
+	response.chunked(true);
+	for(int i = 0; i < 50000; i++) response.body() += "00000000000000000000000000000000";
 
-	// Send request to archive.
-	beast::http::request<beast::http::empty_body> request_archive {beast::http::verb::get, path, 11};
-	request_archive.set("Host", host);
-	co_await beast::http::async_write(sock_archive, request_archive, asio::use_awaitable);
+	auto [err, bytes_writed] = co_await http::async_write(stream_user, serializer, asio::as_tuple(asio::use_awaitable));
+	if(err.failed() && err != beast::http::error::need_buffer) throw err;
 
-	// Read response header from archive.
-	beast::http::response_parser<beast::http::string_body> parser_archive_response;
-	beast::flat_buffer buf;
-	co_await beast::http::async_read_header(sock_archive, buf, parser_archive_response, asio::use_awaitable);
-	std::cout << parser_archive_response.get() << '\n';
+	stream_user.socket().shutdown(asio::ip::tcp::socket::shutdown_send);
+	fmt::print("done.\n");
 
-	// Prepare user response data.
-	beast::http::response<beast::http::buffer_body> response_user;
-	beast::http::response_serializer<beast::http::buffer_body> serializer_user {response_user};
+	// // Data.
+	// auto host = "ia902302.us.archive.org";
+	// auto path = "/22/items/1_20211016_20211016/1.png";
 
-	// Incremental read response body from archive.
-	while(!parser_archive_response.is_done())
-	{
-		auto bytes_readed = co_await beast::http::async_read_some(sock_archive, buf, parser_archive_response, asio::use_awaitable);
-		auto & data = parser_archive_response.get().body();
-		fmt::print("[reader] - read {} bytes.\n", bytes_readed);
-		response_user.body().data = data.data();
-		response_user.body().size = data.size();
-		auto [err, bytes_writed] = co_await beast::http::async_write(stream_user, serializer_user, asio::as_tuple(asio::use_awaitable));
-		if(err.failed() && err != beast::http::error::need_buffer) throw err;
-		fmt::print("[writer] - Write {} bytes.\n", bytes_writed);
-		data.clear();
-	}
+	// // Connect to archive.
+	// auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
+	// asio::ip::tcp::socket sock_archive {co_await this_coro::executor};
+	// co_await asio::async_connect(sock_archive, resolver_results, asio::use_awaitable);
 
-	// Close user connection.
-    stream_user.socket().shutdown(asio::ip::tcp::socket::shutdown_send);
+	// // Send request to archive.
+	// http::request<http::empty_body> request_archive {http::verb::get, path, 11};
+	// request_archive.set("Host", host);
+	// co_await http::async_write(sock_archive, request_archive, asio::use_awaitable);
+
+	// // Read response header from archive.
+	// http::response_parser<http::buffer_body> parser_archive_response;
+	// beast::flat_buffer buf;
+	// co_await http::async_read_header(sock_archive, buf, parser_archive_response, asio::use_awaitable);
+	// std::cout << parser_archive_response.get().base() << '\n';
+
+	// // Prepare user response data.
+	// http::response<http::buffer_body> response_user;
+	// http::response_serializer<http::buffer_body> serializer_user {response_user};
+
+	// // Incremental read from archive -> Incremental write to user.
+	// while(!parser_archive_response.is_done())
+	// {
+	// 	char transmission_buf[128];
+	// 	parser_archive_response.get().body().data = transmission_buf;
+	// 	parser_archive_response.get().body().size = 128;
+	// 	auto [err1, bytes_readed] = co_await http::async_read_some(sock_archive, buf, parser_archive_response, asio::as_tuple(asio::use_awaitable));
+	// 	// for(int i = 0; i < 128; i++)
+	// 	// {
+	// 	// 	std::cout << transmission_buf[i];
+	// 	// }
+	// 	if(err1.failed() && err1 != http::error::need_buffer) throw err1;
+	// 	fmt::print("[reader] - read {} bytes.\n", bytes_readed);
+
+	// 	response_user.body().data = transmission_buf;
+	// 	response_user.body().size = bytes_readed;
+	// 	auto [err, bytes_writed] = co_await http::async_write(stream_user, serializer_user, asio::as_tuple(asio::use_awaitable));
+	// 	if(err.failed() && err != http::error::need_buffer) throw err;
+	// 	fmt::print("[writer] - Write {} bytes.\n", bytes_writed);
+	// 	// for(int i = 0; i < 128; i++) transmission_buf[i] = 0;
+	// 	// parser_archive_response.get().body().size = 128 - parser_archive_response.get().body().size;
+	// 	// parser_archive_response.get().body().data = transmission_buf;
+    //     // parser_archive_response.get().body().more = ! parser_archive_response.is_done();
+	// }
+
+	// // Close user connection.
+    // stream_user.socket().shutdown(asio::ip::tcp::socket::shutdown_send);
 }
 
 auto listener() -> asio::awaitable<void>
@@ -123,10 +150,187 @@ auto listener() -> asio::awaitable<void>
 	}
 }
 
+class http_stream
+{
+	prv asio::ip::tcp::socket sock;
+	prv http::response_parser<http::buffer_body> parser;
+	prv beast::flat_buffer buf;
+
+	pbl http_stream(auto executor): sock(executor) {}
+
+	pbl auto connect(auto host) -> asio::awaitable<void>
+	{
+		auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
+		co_await asio::async_connect(sock, resolver_results, asio::use_awaitable);
+	}
+
+	pbl auto write(auto request) -> asio::awaitable<void>
+	{
+		co_await http::async_write(sock, request, asio::use_awaitable);
+	}
+
+	pbl auto read(auto & response) -> asio::awaitable<void>
+	{
+		co_await http::async_read(sock, buf, response, asio::use_awaitable);
+	}
+
+	pbl auto write_header(auto & header) -> asio::awaitable<void>
+	{
+		// impl.
+	}
+
+	pbl auto read_header(auto & header) -> asio::awaitable<void>
+	{
+		parser.get().base() = header;
+		auto header_size = co_await http::async_read_header(sock, buf, parser, asio::use_awaitable);
+	}
+
+	pbl auto write_body()
+	{
+		//  1: [write request] + [read response]
+		//	2: [write request header] >> [write request body] + [read response header] >> [read response body]
+		//	3: [write request header chunk] >> [write request body chunk] + [read response header chunk] >> [read response body chunk]
+
+		// 1: [packages]
+		// 2: [header] + [body]
+		// 3: [header chunk] + [body chunk]
+
+		// http::buffer_body;
+		// http::string_body;
+		// http::vector_body;
+		// http::empty_body;
+		// http::file_body;
+		// http::dynamic_body;
+
+		// 1:
+		// response res = http_send(request);
+
+		// 1:
+		// http_stream http_stream;
+		// http_stream.write(request | response);
+		// http_stream.read(request | response);
+
+		// 2:
+		// http_stream.write_header(request_header | response_header);
+		// http_stream.read_header(request_header | response_header)
+		// http_stream.write_body(body);	<------------------------???
+		// http_stream.read_body(body);		<------------------------???
+
+		// 3:
+		// http_stream.write_header_chunk();	<------------------------???
+		// http_stream.write_header_chunk();	xxxxxxxxxxxxxxxxxxxxxxxxxxx
+		// http_stream.write_body_chunk(buffer, size);
+		// http_stream.read_body_chunk(buffer, size);
+
+		// impl.
+	}
+
+	pbl auto read_body()
+	{
+		// impl.
+	}
+
+	pbl auto read_body(char * buffer, std::size_t size) -> asio::awaitable<std::optional<std::size_t>>
+	{
+		if(!parser.is_done())
+		{
+			parser.get().body().data = buffer;
+			parser.get().body().size = size;
+			auto [e, bytes_readed] = co_await http::async_read(sock, buf, parser, asio::as_tuple(asio::use_awaitable));
+			if(e.failed() && e != http::error::need_buffer) throw e;
+			if(bytes_readed > size) throw std::runtime_error("read header first");
+			co_return bytes_readed;
+		} else co_return std::nullopt;
+	}
+};
+
+auto test() -> asio::awaitable<void>
+{
+	// Incremental write & read - work& [Check with encription]
+	// Incremental header rw posible&
+
+	// // Data.
+	// auto host = "jigsaw.w3.org";
+	// auto path = "/HTTP/ChunkedScript";
+
+	// // Test.
+	// http_stream http_stream {co_await this_coro::executor};
+	// co_await http_stream.connect(host);
+
+	// // Write.
+	// http::request<http::empty_body> request {http::verb::get, path, 11};
+	// request.set("Host", host);
+	// co_await http_stream.write(request);
+
+	// // Incremental read.
+	// // http::response_header<> header;
+	// // co_await http_stream.read_header(header);
+	// // std::cout << header;
+
+	// // char local_buf[2048];
+	// // while(auto bytes_readed = co_await http_stream.read_body(local_buf, 2048))
+	// // {
+	// // 	fmt::print("Readed {} bytes.\n", bytes_readed.value());
+	// // }
+	// fmt::print("1.\n");
+	// http::response<http::string_body> response;
+	// co_await http_stream.read(response);
+	// std::cout << response;
+	// fmt::print("done.\n");
+
+	// Data.
+	auto host = "jigsaw.w3.org";
+	auto path = "/HTTP/ChunkedScript";
+
+	// Resolve.
+	auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "https", asio::use_awaitable);
+
+	// Connect.
+	asio::ssl::context ssl_ctx {asio::ssl::context::tlsv13_client};
+	asio::ssl::stream<asio::ip::tcp::socket> stream {co_await this_coro::executor, ssl_ctx};
+	co_await asio::async_connect(stream.lowest_layer(), resolver_results, asio::use_awaitable);
+
+	// Handshake.
+	SSL_set_tlsext_host_name(stream.native_handle(), host);
+	co_await stream.async_handshake(stream.client, asio::use_awaitable);
+
+	// Write.
+	http::request<http::empty_body> request {http::verb::get, path, 11};
+	request.set("Host", host);
+	co_await beast::http::async_write(stream, request, asio::use_awaitable);
+
+	// Read.
+	// http::response<http::string_body> response;
+	// beast::flat_buffer buffer;
+	// co_await beast::http::async_read(stream, buffer, response, asio::use_awaitable);
+
+	http::response_parser<http::buffer_body> parser;
+	beast::flat_buffer some_buf;
+	co_await http::async_read_header(stream, some_buf, parser, asio::use_awaitable);
+	std::cout << parser.get().base() << '\n';
+
+	std::string ret;
+
+	while(!parser.is_done())
+	{
+		char buf[512];
+		for(int i = 0; i < 512; i++) buf[i] = '_';
+		parser.get().body().data = buf;
+		parser.get().body().size = 512;
+		auto [err, bytes_readed] = co_await http::async_read(stream, some_buf, parser, asio::as_tuple(asio::use_awaitable));
+		fmt::print("[reader] - read {} bytes.\n", parser.get().body().size);
+		ret.append(buf, 512 - parser.get().body().size);
+	}
+
+	std::cout << ret;
+
+	co_return;
+}
+
 int main() try
 {
 	SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
     asio::io_context ctx;
-    asio::co_spawn(ctx, listener(), hf::rethrowed);
+    asio::co_spawn(ctx, test(), hf::rethrowed);
     return ctx.run();
 } catch(std::exception e) { fmt::print("Except: '{}'.\n", e.what()); }
