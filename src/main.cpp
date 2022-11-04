@@ -1,3 +1,4 @@
+#include "netfox.hpp"
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/buffer.hpp>
@@ -16,6 +17,7 @@
 #include <boost/beast/http/detail/type_traits.hpp>
 #include <boost/beast/http/dynamic_body.hpp>
 #include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/file_body.hpp>
 #include <boost/beast/http/impl/file_body_win32.hpp>
 #include <boost/beast/http/message.hpp>
@@ -40,6 +42,7 @@
 #include <utility>
 #include <expected>
 #include <jaja_notation.hpp>
+#include <netfox.hpp>
 
 namespace asio = boost::asio;					// NOLINT
 namespace beast = boost::beast;					// NOLINT
@@ -150,229 +153,14 @@ auto listener() -> asio::awaitable<void>
 	}
 }
 
-class http_stream
+class sas
 {
-	prv asio::ip::tcp::socket sock;
-	prv http::response_parser<http::buffer_body> parser;
-	prv beast::flat_buffer buf;
-
-	pbl http_stream(auto executor): sock(executor) {}
-
-	pbl auto connect(auto host) -> asio::awaitable<void>
+	pbl auto operator >>(int i) -> asio::awaitable<void>
 	{
-		auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "http", asio::use_awaitable);
-		co_await asio::async_connect(sock, resolver_results, asio::use_awaitable);
+
 	}
 
-	pbl auto write(auto request) -> asio::awaitable<void>
-	{
-		co_await http::async_write(sock, request, asio::use_awaitable);
-	}
-
-	pbl auto read(auto & response) -> asio::awaitable<void>
-	{
-		co_await http::async_read(sock, buf, response, asio::use_awaitable);
-	}
-
-	pbl auto write_header(auto & header) -> asio::awaitable<void>
-	{
-		// impl.
-	}
-
-	pbl auto read_header(auto & header) -> asio::awaitable<void>
-	{
-		parser.get().base() = header;
-		auto header_size = co_await http::async_read_header(sock, buf, parser, asio::use_awaitable);
-	}
-
-	pbl auto write_body()
-	{
-		//  1: [write request] + [read response]
-		//	2: [write request header] >> [write request body] + [read response header] >> [read response body]
-		//	3: [write request header chunk] >> [write request body chunk] + [read response header chunk] >> [read response body chunk]
-
-		// 1: [packages]
-		// 2: [header] + [body]
-		// 3: [header chunk] + [body chunk]
-
-		// http::buffer_body;
-		// http::string_body;
-		// http::vector_body;
-		// http::empty_body;
-		// http::file_body;
-		// http::dynamic_body;
-
-		// 1:
-		// response res = http_send(request);
-
-		// 1:
-		// http_stream http_stream;
-		// http_stream.write(request | response);
-		// http_stream.read(request | response);
-
-		// 2:
-		// http_stream.write_header(request_header | response_header);
-		// http_stream.read_header(request_header | response_header)
-		// http_stream.write_body(body);	<------------------------???
-		// http_stream.read_body(body);		<------------------------???
-
-		// 3:
-		// http_stream.write_header_chunk();	<------------------------???
-		// http_stream.write_header_chunk();	xxxxxxxxxxxxxxxxxxxxxxxxxxx
-		// http_stream.write_body_chunk(buffer, size);
-		// http_stream.read_body_chunk(buffer, size);
-
-		// impl.
-	}
-
-	pbl auto read_body()
-	{
-		// impl.
-	}
-
-	pbl auto read_body(char * buffer, std::size_t size) -> asio::awaitable<std::optional<std::size_t>>
-	{
-		if(!parser.is_done())
-		{
-			parser.get().body().data = buffer;
-			parser.get().body().size = size;
-			auto [e, bytes_readed] = co_await http::async_read(sock, buf, parser, asio::as_tuple(asio::use_awaitable));
-			if(e.failed() && e != http::error::need_buffer) throw e;
-			if(bytes_readed > size) throw std::runtime_error("read header first");
-			co_return bytes_readed;
-		} else co_return std::nullopt;
-	}
-};
-
-class https_stream
-{
-	// prv http::request_parser<http::buffer_body>			parser_request;
-	// prv http::request_serializer<http::buffer_body>		serializer_request;
-	// prv http::response_serializer<http::buffer_body>	serializer_response;
-	prv inline static asio::ssl::context						ssl_ctx {asio::ssl::context::tlsv13_client};
-	prv http::response_parser<http::buffer_body>				parser_response;
-	prv beast::flat_buffer										buf;
-	prv asio::ssl::stream<asio::ip::tcp::socket>				stream;
-
-	pbl https_stream(auto executor): stream(executor, ssl_ctx) {}
-
-	pbl auto connect(auto host) -> asio::awaitable<void>
-	{
-		auto resolver_results = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "https", asio::use_awaitable);
-		co_await asio::async_connect(stream.lowest_layer(), resolver_results, asio::use_awaitable);
-	}
-
-	pbl auto handshake(auto host) -> asio::awaitable<void>
-	{
-		SSL_set_tlsext_host_name(stream.native_handle(), host);
-		co_await stream.async_handshake(stream.client, asio::use_awaitable);
-	}
-
-	pbl auto write(auto package) -> asio::awaitable<void>
-	{
-		co_await http::async_write(stream, package, asio::use_awaitable);
-	}
-
-	pbl auto read(auto & package) -> asio::awaitable<void>
-	{
-		co_await http::async_read(stream, buf, package, asio::use_awaitable);
-	}
-
-	pbl auto write_header(auto & header);
-
-	pbl auto read_header(auto & header) -> asio::awaitable<void>
-	{
-		co_await http::async_read_header(stream, buf, parser_response, asio::use_awaitable);
-		header = parser_response.get().base();
-	}
-
-	pbl auto read_request_body(auto & body);
-	pbl auto read_response_body(auto & body);
-	pbl auto write_request_body(auto & body);
-	pbl auto write_response_body(auto & body);
-
-	pbl auto write_request_body_chunk();
-	pbl auto read_request_body_chunk();
-	pbl auto write_response_body_chunk();
-
-	pbl auto read_response_body_chunk(char * buffer, std::size_t size) -> asio::awaitable<std::optional<std::size_t>>
-	{
-		if(!parser_response.is_done())
-		{
-			parser_response.get().body().data = buffer;
-			parser_response.get().body().size = size;
-			auto [err, bytes_readed] = co_await http::async_read(stream, buf, parser_response, asio::as_tuple(asio::use_awaitable));
-			co_return size - parser_response.get().body().size;
-		} else co_return std::nullopt;
-	}
-};
-
-class https_stream_v1
-{
-	// Basic operations.
-	pbl auto write(auto package);
-	pbl auto read(auto & package);
-
-	// Splitted operation.
-	pbl auto write_header(auto & header);
-	pbl auto read_header(auto & header);
-	pbl auto read_request_body(auto & body);
-	pbl auto read_response_body(auto & body);
-	pbl auto write_request_body(auto & body);
-	pbl auto write_response_body(auto & body);
-
-	// Chunk operations.
-	pbl auto write_request_body_chunk();
-	pbl auto read_request_body_chunk();
-	pbl auto write_response_body_chunk();
-	pbl auto read_response_body_chunk();
-};
-
-
-class https_stream_test
-{
-	pbl struct
-	{
-		pbl struct
-		{
-			void header() {}
-			void body() {}
-			auto operator()() {}
-		} request;
-
-		pbl struct
-		{
-			void header() {}
-			void body() {}
-			auto operator()() {}
-		} response;
-
-		auto operator()() {}
-	} write;
-
-	pbl struct
-	{
-		pbl struct
-		{
-			void header() {}
-			void body() {}
-			auto operator()() {}
-		} request;
-
-		pbl struct
-		{
-			void header() {}
-			void body() {}
-			auto operator()() {}
-		} response;
-
-		auto operator()() {}
-	} read;
-};
-
-class stream
-{
-	pbl auto operator <<(auto i) -> asio::awaitable<void>
+	pbl auto operator [](asio::awaitable<void> i) -> asio::awaitable<void>
 	{
 
 	}
@@ -380,50 +168,85 @@ class stream
 
 auto test() -> asio::awaitable<void>
 {
-	https_stream_test stream;
-	stream.read.response.body.chunk();
+	// netfox::http::stream<netfox::side::client> stream;
+	// co_await stream.connect("exmaple.com");
 
-	// stream stream;
-	// int request;
-	// co_await (stream << request);
-	// co_await stream.write.request.header();
+	// http::request<http::empty_body> request {http::verb::get, "/", 11};
+	// if(auto result = co_await stream.write(request))
+	// {
+	// 	// stream.read(only_body, request);
+	// 	// stream.read(only_header, request);
+	// 	// stream
+	// }
+	// else
+	// {
+	// 	fmt::print("Write error: '{}'.\n", result.error());
+	// }
+
+	// stream.expires_from_now(boost::posix_time::seconds(60));
+
+	// co_await stream.async(stream >> 5);
+
+	// auto x = stream >> 5; co_await std::move(x);
+
+	// [stream >> var]
+
+	// client_stream[]
+
+	// stream.read(only_header);
+	// stream.write(only_body);
+	// co_await stream[stream >> var];
+
+
+	// http::request<http::empty_body> request {http::verb::get, "/", 11};
+	// request.set("Host", "exmaple.com");
+	// co_await client_stream.write_request(request);
+
+	http::header<true> header;
+	header.method(http::verb::get);
+	header.target("/");
+	header.set("Host", "exmaple.com");
+	co_await client_stream.write_request_header(header);
+
+	http::response<http::string_body> response;
+	co_await client_stream.read_response(response);
+
+	std::cout << response;
+
+	// http::response_header<> header;
+	// co_await client_stream.read_response_header(header);
+	// std::cout << header;
+
+	// std::string ret;
+	// char buffer[8];
+	// while(auto bytes_readed = co_await client_stream.read_response_body_chunk(buffer, 8))
+	// {
+	// 	fmt::print("Readed: {} bytes.\n", bytes_readed.value());
+	// 	ret.append(buffer, bytes_readed.value());
+	// }
+	// std::cout << ret;
+
+
+	// nf::http::stream<nf::side::client> x;
 
 
 	// Data.
-	auto host = "jigsaw.w3.org";
-	auto path = "/HTTP/ChunkedScript";
+	// auto host = "jigsaw.w3.org";
+	// auto path = "/HTTP/ChunkedScript";
 
-	https_stream https_stream {co_await this_coro::executor};
-	co_await https_stream.connect(host);
-	co_await https_stream.handshake(host);
+	// nf::https::stream https_stream;
+	// co_await https_stream.connect(host);
+	// co_await https_stream.handshake_client(host);
 
-	http::request<http::empty_body> request {http::verb::get, path, 11};
-	request.set("Host", host);
-	co_await https_stream.write(request);
-
-	https_stream_test stream_test;
-	stream_test.write.request.header();
-
-
-
-	// std::string ret;
-
-	// char buf[512];
-	// while(auto bytes_readed = co_await https_stream.read_response_body_chunk(buf, 512))
-	// {
-	// 	fmt::print("Readed: {} bytes.\n", bytes_readed.value());
-	// 	ret.append(buf, bytes_readed.value());
-	// }
-
-	http::response_header<> header;
-	co_await https_stream.read_header(header);
-	std::cout << header;
+	// http::request<http::empty_body> request {http::verb::get, path, 11};
+	// request.set("Host", host);
+	// co_await (https_stream << request);
 
 	// http::response<http::string_body> response;
-	// co_await https_stream.read(response);
-	// std::cout << response.body();
+	// co_await (https_stream >> response);
 
-	co_return;
+	// std::cout << response;
+	// co_return;
 }
 
 int main() try
