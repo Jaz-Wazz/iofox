@@ -2,12 +2,15 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/execution_context.hpp>
 #include <boost/asio/executor.hpp>
 #include <boost/asio/experimental/use_coro.hpp>
+#include <boost/asio/impl/execution_context.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <chrono>
 #include <fmt/core.h>
 #include <functional>
@@ -23,64 +26,42 @@
 #include <boost/asio/experimental/coro.hpp>
 #include <boost/asio/experimental/co_spawn.hpp>
 
-auto sub_coro(auto & executor) -> asio::experimental::coro<void, int>
+class service: public asio::execution_context::service
 {
-	co_await asio::steady_timer(executor, std::chrono::seconds(5)).async_wait(asio::experimental::use_coro);
-	co_return 10;
-}
+	pbl using key_type = service;
+	pbl using id = service;
+	pbl int x = 10;
 
-auto incremental_coro(auto & executor) -> asio::experimental::coro<int(int)>
+	pbl service(asio::execution_context & context): asio::execution_context::service(context) {}
+	pbl void shutdown() {}
+	pbl ~service() {}
+};
+
+auto coro(char id) -> asio::awaitable<void>
 {
-	for(int i = 5;; i++)
-	{
-		co_await asio::steady_timer(executor, std::chrono::seconds(1)).async_wait(asio::experimental::use_coro);
-		co_yield i;
-	}
-}
+	// Create service if not exist.
+	auto & execution_context = (co_await this_coro::executor).context();
+	if(!asio::has_service<service>(execution_context)) asio::make_service<service>(execution_context);
 
-asio::experimental::coro<int(int)> my_sum(asio::io_context & x)
-{
-	for(int i = 5;; i++)
-	{
-		co_await asio::steady_timer(x, std::chrono::seconds(1)).async_wait(asio::experimental::use_coro);
-		co_yield i;
-	}
-}
-
-auto coro(auto & executor) -> asio::experimental::coro<void()>
-{
-	boost::asio::execution_context context;
-	boost::asio::execution_context::id x;
-
-	// fmt::print("[coro] - co_await test start.\n");
-	// co_await asio::steady_timer(executor, std::chrono::seconds(5)).async_wait(asio::experimental::use_coro);
-	// fmt::print("[coro] - co_await test done.\n");
-
-	// auto x = co_await sub_coro(executor);
-	// fmt::print("[coro] - co_return test: '{}'\n", x);
-
-	// std::optional<int> x = co_await incremental_coro(executor);
-	// for(;;)
-	// {
-	// 	std::optional<int> x = co_await x.value();
-	// 	fmt::print("[coro] - co_yield test: '{}'\n", x.value());
-	// }
-
-	asio::io_context c;
-	auto sum = my_sum(c);
-	for(;;)
-	{
-		std::optional<int> x = co_await sum(5);
-		fmt::print("[coro] - co_yield test: '{}'\n", x.value());
-	}
-
-	co_return;
+	// Use service.
+	auto & x = asio::use_service<service>((co_await this_coro::executor).context());
+	fmt::print("[coro '{}'] - Value: '{}'.\n", id, x.x++);
 }
 
 int main()
 {
-	asio::io_context ctx;
-	asio::experimental::co_spawn(coro(ctx), asio::detached);
-	ctx.run();
+	// First ctx.
+	{
+		asio::io_context ctx;
+		for(int i = 0; i < 10; i++) asio::co_spawn(ctx, coro('a'), hf::rethrowed);
+		ctx.run();
+	}
+
+	// Second ctx.
+	{
+		asio::io_context ctx;
+		for(int i = 0; i < 10; i++) asio::co_spawn(ctx, coro('b'), hf::rethrowed);
+		ctx.run();
+	}
 	return 0;
 }

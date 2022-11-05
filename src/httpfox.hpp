@@ -1,5 +1,4 @@
 #pragma once
-#define BOOST_ASIO_HAS_CO_AWAIT
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/experimental/as_tuple.hpp>
