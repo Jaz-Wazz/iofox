@@ -26,26 +26,32 @@
 #include <boost/asio/experimental/coro.hpp>
 #include <boost/asio/experimental/co_spawn.hpp>
 
-class service: public asio::execution_context::service
+template <typename T> class context_local
 {
-	pbl using key_type = service;
-	pbl using id = service;
-	pbl int x = 10;
+	prv class service_cls: public asio::execution_context::service
+	{
+		pbl using key_type = service;
+		pbl using id = service;
+		pbl T var = 0;
+		pbl service_cls(asio::execution_context & context): asio::execution_context::service(context) {}
+		pbl void shutdown() {}
+		pbl ~service() {}
+	};
 
-	pbl service(asio::execution_context & context): asio::execution_context::service(context) {}
-	pbl void shutdown() {}
-	pbl ~service() {}
+	pbl auto value() -> asio::awaitable<std::reference_wrapper<T>>
+	{
+		auto & execution_context = (co_await this_coro::executor).context();
+		if(!asio::has_service<service_cls>(execution_context)) asio::make_service<service_cls>(execution_context);
+		co_return asio::use_service<service_cls>(execution_context).var;
+	}
 };
+
+context_local<int> var;
 
 auto coro(char id) -> asio::awaitable<void>
 {
-	// Create service if not exist.
-	auto & execution_context = (co_await this_coro::executor).context();
-	if(!asio::has_service<service>(execution_context)) asio::make_service<service>(execution_context);
-
-	// Use service.
-	auto & x = asio::use_service<service>((co_await this_coro::executor).context());
-	fmt::print("[coro '{}'] - Value: '{}'.\n", id, x.x++);
+	int & x = co_await var.value();
+	fmt::print("[coro '{}'] - Value: '{}'.\n", id, x++);
 }
 
 int main()
