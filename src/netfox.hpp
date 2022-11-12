@@ -15,22 +15,22 @@
 
 namespace netfox::system
 {
-	template <typename T> class context_local: boost::noncopyable
+	template <typename T> class service: boost::noncopyable
 	{
-		pbl explicit context_local() {}
+		pbl explicit service() {}
 
-		prv class service: public asio::execution_context::service, public std::optional<T>
+		prv class serv: public asio::execution_context::service, public std::optional<T>
 		{
-			pbl using key_type = service;
-			pbl using id = service;
-			pbl service(asio::execution_context & ctx): asio::execution_context::service(ctx) {}
+			pbl using key_type = serv;
+			pbl using id = serv;
+			pbl serv(asio::execution_context & ctx): asio::execution_context::service(ctx) {}
 			pbl void shutdown() {}
 		};
 
-		pbl auto value_or_emplace(asio::any_io_executor && executor, auto... args) -> T &
+		pbl auto get_or_make(asio::any_io_executor && executor, auto... args) -> T &
 		{
-			if(!asio::has_service<service>(executor.context())) asio::make_service<service>(executor.context());
-			service & s = asio::use_service<service>(executor.context());
+			if(!asio::has_service<serv>(executor.context())) asio::make_service<serv>(executor.context());
+			serv & s = asio::use_service<serv>(executor.context());
 			if(!s) s.emplace(std::forward<decltype(args)>(args)...);
 			return s.value();
 		}
@@ -41,9 +41,9 @@ namespace netfox::dns
 {
 	auto resolve(auto protocol, auto host) -> asio::awaitable<asio::ip::tcp::resolver::results_type>
 	{
-		static netfox::system::context_local<asio::ip::tcp::resolver> resolver;
-		auto & r = resolver.value_or_emplace(co_await this_coro::executor, co_await this_coro::executor);
-		co_return co_await r.async_resolve(host, protocol, asio::use_awaitable);
+		static netfox::system::service<asio::ip::tcp::resolver> service;
+		auto & resolver = service.get_or_make(co_await this_coro::executor, co_await this_coro::executor);
+		co_return co_await resolver.async_resolve(host, protocol, asio::use_awaitable);
 	}
 }
 

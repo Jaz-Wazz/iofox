@@ -7,7 +7,10 @@
 #include <netfox.hpp>
 #include <httpfox.hpp>
 
-namespace asio = boost::asio; // NOLINT
+namespace asio		= boost::asio;		// NOLINT
+namespace this_coro	= asio::this_coro;	// NOLINT
+
+#define pbl public:
 
 auto coro() -> asio::awaitable<void>
 {
