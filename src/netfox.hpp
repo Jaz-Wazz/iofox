@@ -1,11 +1,16 @@
 #pragma once
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/execution_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <exception>
+#include <expected>
+#include <fmt/core.h>
+#include <functional>
 #include <optional>
 
 #define asio		boost::asio
@@ -15,6 +20,15 @@
 
 namespace netfox::system
 {
+	template <typename R, typename E> class result: public std::expected<R, E>
+	{
+		pbl using std::expected<R, E>::expected;
+		pbl R & operator~() { return this->has_value() ? this->value() : throw this->error(); }
+		pbl auto error_as_unexpected() -> std::unexpected<E> { return this->error(); }
+	};
+
+	template <typename R, typename E> using async_result = asio::awaitable<result<R, E>>;
+
 	template <typename T> class service: boost::noncopyable
 	{
 		pbl explicit service() {}
@@ -27,23 +41,35 @@ namespace netfox::system
 			pbl void shutdown() {}
 		};
 
-		pbl auto get_or_make(asio::any_io_executor && executor, auto... args) -> T &
+		pbl auto get_or_make(auto... args) noexcept -> async_result<std::reference_wrapper<T>, std::string> try
 		{
-			if(!asio::has_service<serv>(executor.context())) asio::make_service<serv>(executor.context());
-			serv & s = asio::use_service<serv>(executor.context());
+			auto && context = (co_await this_coro::executor).context();
+			if(!asio::has_service<serv>(context)) asio::make_service<serv>(context);
+			serv & s = asio::use_service<serv>(context);
 			if(!s) s.emplace(std::forward<decltype(args)>(args)...);
-			return s.value();
+			co_return s.value();
 		}
+		catch(std::exception e)	{ co_return std::unexpected(e.what()); }
+		catch(...)				{ co_return std::unexpected("unknown"); }
     };
 }
 
 namespace netfox::dns
 {
-	auto resolve(auto protocol, auto host) -> asio::awaitable<asio::ip::tcp::resolver::results_type>
+	inline auto resolve(std::string protocol, std::string host) noexcept
+	-> system::async_result<asio::ip::tcp::resolver::results_type, std::string>
 	{
-		static netfox::system::service<asio::ip::tcp::resolver> service;
-		auto & resolver = service.get_or_make(co_await this_coro::executor, co_await this_coro::executor);
-		co_return co_await resolver.async_resolve(host, protocol, asio::use_awaitable);
+		// Decl service.
+		static system::service<asio::ip::tcp::resolver> service;
+
+		// Get service.
+		auto ret = co_await service.get_or_make(co_await this_coro::executor);
+		if(!ret) co_return std::unexpected(fmt::format("dns resolve error -> service error -> {}", ret.error()));
+
+		// Resolve.
+		auto [ec, result] = co_await ret.value().get().async_resolve(host, protocol, asio::as_tuple(asio::use_awaitable));
+		if(ec) co_return std::unexpected(fmt::format("dns resolve error -> {}", ec.message()));
+		co_return result;
 	}
 }
 
