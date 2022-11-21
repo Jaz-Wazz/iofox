@@ -1,42 +1,68 @@
+#include <boost/asio/awaitable.hpp>
+#include <boost/leaf/error.hpp>
+#include <boost/leaf/handle_errors.hpp>
+#include <boost/leaf/result.hpp>
+#include <exception>
 #include <fmt/core.h>
-#include <stacktrace>
+#include <stdexcept>
 
-void print_stack(std::stacktrace && trace)
+namespace leaf = boost::leaf; // NOLINT
+
+leaf::result<std::string> get_some_string()
 {
-	fmt::print("Stack:\n");
-	for(auto el : trace)
-	{
-		auto && foo = [&]
-		{
-			auto && desk = el.description();
-			desk = desk.substr(desk.find_first_of('!') + 1);
-			desk = desk.erase(desk.find_last_of('+'));
-			return desk;
-		}();
-
-		auto && file = [&]
-		{
-			auto && path = el.source_file();
-			if(path.empty()) return std::string("-");
-			return path.substr(path.find_last_of('\\') + 1);
-		}();
-
-		fmt::print("{:5} -> {:30} -> {}\n", el.source_line(), foo, file);
-	}
-}
-
-void bar()
-{
-	print_stack(std::stacktrace::current());
+	return leaf::new_error(std::string("normal_error"));
+	return "normal_string";
 }
 
 void foo()
 {
-	bar();
+	throw 10;
 }
 
 int main()
 {
-	foo();
+	// if(auto x = get_some_string())
+	// {
+	// 	fmt::print("Normal code way, string is: '{}'.\n", x.value());
+	// }
+	// else
+	// {
+	// 	fmt::print("Bad code way, error is '?'.\n");
+	// }
+
+	// auto ret = leaf::try_handle_some([] -> leaf::result<int>
+	// {
+	// 	auto str = get_some_string();
+	// 	if(!str) return str.error();
+
+	// 	return 10;
+	// }, [](std::string err) -> leaf::result<int>
+	// {
+	// 	fmt::print("Catch error as string: '{}'.\n", err);
+	// 	return 20;
+	// });
+
+	// auto ret = leaf::try_handle_some([] -> leaf::result<int>
+	// {
+	// 	auto str = get_some_string();
+	// 	if(!str) return str.error();
+
+	// 	return 10;
+	// }, [](std::string err) -> leaf::result<int>
+	// {
+	// 	fmt::print("Catch error as string: '{}'.\n", err);
+	// 	return 20;
+	// });
+
+	leaf::try_catch([]
+	{
+		fmt::print("Some code.\n");
+		throw std::runtime_error {"err"};
+	}, [](std::exception & i) -> boost::asio::awaitable<void>
+	{
+		fmt::print("Except: '{}'.\n", i.what());
+		co_return;
+	});
+
 	return 0;
 }
