@@ -1,68 +1,58 @@
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/leaf/error.hpp>
 #include <boost/leaf/handle_errors.hpp>
 #include <boost/leaf/result.hpp>
+#include <chrono>
 #include <exception>
 #include <fmt/core.h>
 #include <stdexcept>
 
-namespace leaf = boost::leaf; // NOLINT
+namespace leaf = boost::leaf;			// NOLINT
+namespace asio = boost::asio;			// NOLINT
+namespace this_coro = asio::this_coro;	// NOLINT
 
-leaf::result<std::string> get_some_string()
+namespace netfox
 {
-	return leaf::new_error(std::string("normal_error"));
-	return "normal_string";
+	auto try_catch(auto block_try, auto block_catch) -> asio::awaitable<void>
+	{
+		std::exception_ptr hax = nullptr;
+		std::exception * x = nullptr;
+		try
+		{
+			co_await block_try();
+		}
+		catch(std::exception & e)
+		{
+			hax = std::current_exception();
+			x = &e;
+		}
+		if(x != nullptr) co_await block_catch(*x);
+	}
 }
 
-void foo()
+auto coro() -> asio::awaitable<void>
 {
-	throw 10;
+	co_await netfox::try_catch([] -> asio::awaitable<void>
+	{
+		throw std::runtime_error("sas");
+	}, [](std::exception & e) -> asio::awaitable<void>
+	{
+		co_await asio::steady_timer(co_await this_coro::executor, std::chrono::seconds(5)).async_wait(asio::use_awaitable);
+		fmt::print("err: '{}'.\n", e.what());
+	});
+
+	co_return;
 }
 
 int main()
 {
-	// if(auto x = get_some_string())
-	// {
-	// 	fmt::print("Normal code way, string is: '{}'.\n", x.value());
-	// }
-	// else
-	// {
-	// 	fmt::print("Bad code way, error is '?'.\n");
-	// }
-
-	// auto ret = leaf::try_handle_some([] -> leaf::result<int>
-	// {
-	// 	auto str = get_some_string();
-	// 	if(!str) return str.error();
-
-	// 	return 10;
-	// }, [](std::string err) -> leaf::result<int>
-	// {
-	// 	fmt::print("Catch error as string: '{}'.\n", err);
-	// 	return 20;
-	// });
-
-	// auto ret = leaf::try_handle_some([] -> leaf::result<int>
-	// {
-	// 	auto str = get_some_string();
-	// 	if(!str) return str.error();
-
-	// 	return 10;
-	// }, [](std::string err) -> leaf::result<int>
-	// {
-	// 	fmt::print("Catch error as string: '{}'.\n", err);
-	// 	return 20;
-	// });
-
-	leaf::try_catch([]
-	{
-		fmt::print("Some code.\n");
-		throw std::runtime_error {"err"};
-	}, [](std::exception & i) -> boost::asio::awaitable<void>
-	{
-		fmt::print("Except: '{}'.\n", i.what());
-		co_return;
-	});
-
-	return 0;
+	asio::io_context ctx;
+	asio::co_spawn(ctx, coro(), asio::detached);
+	return ctx.run();
 }
