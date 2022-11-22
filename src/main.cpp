@@ -1,58 +1,52 @@
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
-#include <boost/leaf/error.hpp>
-#include <boost/leaf/handle_errors.hpp>
-#include <boost/leaf/result.hpp>
-#include <chrono>
-#include <exception>
+#include <boost/outcome.hpp>
+#include <boost/outcome/result.hpp>
 #include <fmt/core.h>
-#include <stdexcept>
+#include <system_error>
 
-namespace leaf = boost::leaf;			// NOLINT
-namespace asio = boost::asio;			// NOLINT
-namespace this_coro = asio::this_coro;	// NOLINT
+namespace outcome = BOOST_OUTCOME_V2_NAMESPACE; // NOLINT
 
-namespace netfox
+enum class err { success, error_a, error_b, error_c };
+template <> struct std::is_error_code_enum<err> : true_type {};
+
+class err_category: public std::error_category
 {
-	auto try_catch(auto block_try, auto block_catch) -> asio::awaitable<void>
+	public: virtual const char * name() const noexcept override final { return "err"; }
+
+	public: virtual std::string message(int c) const override final
 	{
-		std::exception_ptr hax = nullptr;
-		std::exception * x = nullptr;
-		try
+		switch (static_cast<err>(c))
 		{
-			co_await block_try();
+			case err::success: return "success";
+			case err::error_a: return "error type a";
+			case err::error_b: return "error type b";
+			case err::error_c: return "error type c";
+			default: return "unknown";
 		}
-		catch(std::exception & e)
-		{
-			hax = std::current_exception();
-			x = &e;
-		}
-		if(x != nullptr) co_await block_catch(*x);
 	}
+};
+
+inline std::error_code make_error_code(err e)
+{
+	return {static_cast<int>(e), err_category()};
 }
 
-auto coro() -> asio::awaitable<void>
+outcome::result<std::string, std::error_code> foo()
 {
-	co_await netfox::try_catch([] -> asio::awaitable<void>
-	{
-		throw std::runtime_error("sas");
-	}, [](std::exception & e) -> asio::awaitable<void>
-	{
-		co_await asio::steady_timer(co_await this_coro::executor, std::chrono::seconds(5)).async_wait(asio::use_awaitable);
-		fmt::print("err: '{}'.\n", e.what());
-	});
-
-	co_return;
+	// return "string";
+	// return std::errc::address_family_not_supported;
+	return err::error_a;
 }
 
 int main()
 {
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), asio::detached);
-	return ctx.run();
+	if(auto x = foo())
+	{
+		fmt::print("Success: '{}'.\n", x.value());
+	}
+	else
+	{
+		fmt::print("Error: '{}'.\n", x.error().message());
+	}
+
+	return 0;
 }
