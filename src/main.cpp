@@ -1,6 +1,10 @@
 #include <boost/outcome.hpp>
+#include <boost/outcome/outcome.hpp>
 #include <boost/outcome/result.hpp>
+#include <boost/system/detail/errc.hpp>
+#include <exception>
 #include <fmt/core.h>
+#include <stdexcept>
 #include <system_error>
 
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE; // NOLINT
@@ -30,11 +34,12 @@ inline std::error_code make_error_code(err e)
 	return {static_cast<int>(e), err_category()};
 }
 
-outcome::result<std::string, std::error_code> foo()
+outcome::outcome<std::string, std::error_code> foo()
 {
 	// return "string";
 	// return std::errc::address_family_not_supported;
-	return err::error_a;
+	// return err::error_a;
+	try { throw std::runtime_error("sas"); } catch(...) { return std::current_exception(); }
 }
 
 int main()
@@ -42,6 +47,10 @@ int main()
 	if(auto x = foo())
 	{
 		fmt::print("Success: '{}'.\n", x.value());
+	}
+	else if(x.has_exception())
+	{
+		fmt::print("Except: '?'.\n");
 	}
 	else
 	{
