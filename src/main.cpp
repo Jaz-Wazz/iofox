@@ -100,6 +100,7 @@ namespace netfox::https
 
 auto coro() -> asio::awaitable<void>
 {
+	std::function<asio::awaitable<void>()> on_error;
 	netfox::https::client client;
 
 	try
@@ -117,13 +118,18 @@ auto coro() -> asio::awaitable<void>
 	catch(std::exception & e)
 	{
 		fmt::print("Inner exception: '{}'.\n", e.what());
+
+		on_error = [&] -> asio::awaitable<void>
+		{
+			co_await client.disconnect();
+		};
 	}
 	catch(...)
 	{
 		fmt::print("Inner exception: 'unknown'.\n");
 	}
 
-	co_await client.disconnect();
+	if(on_error) co_await on_error();
 }
 
 int main()
