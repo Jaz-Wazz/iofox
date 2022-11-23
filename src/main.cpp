@@ -101,15 +101,27 @@ namespace netfox::https
 auto coro() -> asio::awaitable<void>
 {
 	netfox::https::client client;
-	co_await client.connect("exmaple.com");
 
-	beast::http::request<beast::http::empty_body> request {beast::http::verb::get, "/", 11};
-	request.set("host", "exmaple.com");
-	co_await client.send_request(request);
+	try
+	{
+		co_await client.connect("exmaple.com");
 
-	beast::http::response<beast::http::string_body> response;
-	co_await client.read_response(response);
-	fmt::print("response readed: '{}'.\n", response.body());
+		beast::http::request<beast::http::empty_body> request {beast::http::verb::get, "/", 11};
+		request.set("host", "exmaple.com");
+		co_await client.send_request(request);
+
+		beast::http::response<beast::http::string_body> response;
+		co_await client.read_response(response);
+		fmt::print("response readed: '{}'.\n", response.body());
+	}
+	catch(std::exception & e)
+	{
+		fmt::print("Inner exception: '{}'.\n", e.what());
+	}
+	catch(...)
+	{
+		fmt::print("Inner exception: 'unknown'.\n");
+	}
 
 	co_await client.disconnect();
 }
