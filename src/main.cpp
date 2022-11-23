@@ -16,6 +16,7 @@
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/outcome/result.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <exception>
 #include <fmt/core.h>
 #include <jaja_notation.hpp>
@@ -87,13 +88,16 @@ namespace netfox::https
 			throw std::runtime_error("sas");
 		}
 
-		pbl auto disconnect() -> asio::awaitable<void>
+		pbl auto disconnect(auto && handler)
 		{
-			auto [err] = co_await stream->async_shutdown(asio::as_tuple(asio::use_awaitable));
-			if(err != asio::ssl::error::stream_truncated) throw err;
-			stream->next_layer().shutdown(stream->next_layer().shutdown_both);
-			stream->next_layer().close();
-			fmt::print("disconnected.\n");
+			stream->async_shutdown([&](boost::system::error_code err)
+			{
+				fmt::print("disconnected.\n");
+				stream->next_layer().shutdown(stream->next_layer().shutdown_both);
+				stream->next_layer().close();
+				if(err == asio::ssl::error::stream_truncated) err.clear();
+				handler(err);
+			});
 		}
 	};
 }
@@ -118,11 +122,7 @@ auto coro() -> asio::awaitable<void>
 	catch(std::exception & e)
 	{
 		fmt::print("Inner exception: '{}'.\n", e.what());
-
-		asio::co_spawn(executor, [client = std::move(client)] mutable -> asio::awaitable<void>
-		{
-			co_await client.disconnect();
-		}, asio::detached);
+		client.disconnect([](boost::system::error_code e){ fmt::print("disconnect handle..."); });
 	}
 	catch(...)
 	{
