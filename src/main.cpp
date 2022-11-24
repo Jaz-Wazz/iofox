@@ -4,6 +4,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/error.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/connect.hpp>
@@ -15,13 +16,18 @@
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/http/write.hpp>
+#include <boost/outcome/outcome.hpp>
 #include <boost/outcome/result.hpp>
+#include <boost/outcome/success_failure.hpp>
+#include <boost/outcome/try.hpp>
+#include <boost/system/detail/errc.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <exception>
 #include <fmt/core.h>
 #include <jaja_notation.hpp>
 #include <optional>
 #include <stdexcept>
+#include <as_result.hpp>
 
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;	// NOLINT
 namespace asio = boost::asio;					// NOLINT
@@ -60,6 +66,9 @@ namespace netfox::http
 	};
 }
 
+#define netfox_try(x) BOOST_OUTCOME_CO_TRYX(x)
+#define netfox_try(x) BOOST_OUTCOME_CO_TRYX(x)
+
 namespace netfox::https
 {
 	class client
@@ -67,66 +76,77 @@ namespace netfox::https
 		prv std::optional<asio::ssl::stream<asio::ip::tcp::socket>> stream;
 		prv asio::ssl::context ssl_ctx {ssl_ctx.tlsv13_client};
 
-		pbl auto connect(std::string host) -> asio::awaitable<void>
+		pbl auto connect(std::string host) -> asio::awaitable<outcome::outcome<void>> try
 		{
-			auto ret = co_await asio::ip::tcp::resolver(co_await this_coro::executor).async_resolve(host, "https", asio::use_awaitable);
+			auto && executor = co_await this_coro::executor;
+			auto ret = netfox_try(co_await asio::ip::tcp::resolver(executor).async_resolve(host, "httpsx", as_result(asio::use_awaitable)));
 			stream.emplace(co_await this_coro::executor, ssl_ctx);
-			co_await asio::async_connect(stream->next_layer(), ret, asio::use_awaitable);
+			netfox_try(co_await asio::async_connect(stream->next_layer(), ret, as_result(asio::use_awaitable)));
 			SSL_set_tlsext_host_name(stream->native_handle(), host.c_str());
-			co_await stream->async_handshake(stream->client, asio::use_awaitable);
+			netfox_try(co_await stream->async_handshake(stream->client, as_result(asio::use_awaitable)));
+			co_return outcome::success();
 		}
+		catch(...) { co_return std::current_exception(); }
 
-		pbl auto send_request(auto & request) -> asio::awaitable<void>
+		pbl auto send_request(auto & request) -> asio::awaitable<outcome::outcome<void>> try
 		{
-			co_await beast::http::async_write(stream.value(), request, asio::use_awaitable);
+			netfox_try(co_await beast::http::async_write(stream.value(), request, as_result(asio::use_awaitable)));
+			co_return outcome::success();
 		}
+		catch(...) { co_return std::current_exception(); }
 
-		pbl auto read_response(auto & response) -> asio::awaitable<void>
+		pbl auto read_response(auto & response) -> asio::awaitable<outcome::outcome<void>> try
 		{
 			beast::flat_buffer buf;
-			co_await beast::http::async_read(stream.value(), buf, response, asio::use_awaitable);
-			throw std::runtime_error("sas");
+			netfox_try(co_await beast::http::async_read(stream.value(), buf, response, as_result(asio::use_awaitable)));
+			co_return outcome::success();
 		}
+		catch(...) { co_return std::current_exception(); }
 
-		pbl auto disconnect(auto && handler)
+		pbl auto disconnect() -> asio::awaitable<outcome::outcome<void>> try
 		{
-			stream->async_shutdown([&](boost::system::error_code err)
-			{
-				fmt::print("disconnected.\n");
-				stream->next_layer().shutdown(stream->next_layer().shutdown_both);
-				stream->next_layer().close();
-				if(err == asio::ssl::error::stream_truncated) err.clear();
-				handler(err);
-			});
+			auto ret = co_await stream->async_shutdown(as_result(asio::use_awaitable));
+			if(ret.has_error() && ret.error() != asio::ssl::error::stream_truncated) co_return ret.error();
+			stream->next_layer().shutdown(stream->next_layer().shutdown_both);
+			stream->next_layer().close();
+			fmt::print("disconnected.\n");
+			co_return outcome::success();
 		}
+		catch(...) { co_return std::current_exception(); }
 	};
 }
 
 auto coro() -> asio::awaitable<void>
 {
 	netfox::https::client client;
-	auto && executor = co_await this_coro::executor;
+	// co_await client.send_request(req);
 
-	try
+	auto state = co_await [&] -> asio::awaitable<outcome::outcome<void>>
 	{
-		co_await client.connect("exmaple.com");
+		netfox_try(co_await client.connect("exmaple.com"));
 
 		beast::http::request<beast::http::empty_body> request {beast::http::verb::get, "/", 11};
 		request.set("host", "exmaple.com");
-		co_await client.send_request(request);
+		netfox_try(co_await client.send_request(request));
 
 		beast::http::response<beast::http::string_body> response;
-		co_await client.read_response(response);
+		netfox_try(co_await client.read_response(response));
 		fmt::print("response readed: '{}'.\n", response.body());
-	}
-	catch(std::exception & e)
+
+		netfox_try(co_await client.disconnect());
+		co_return outcome::success();
+	}();
+
+	// netfox::defer def = []{ on_error_code... };
+	// -> ~def() -> user_async_lambd() ->
+
+	if(state.has_failure())
 	{
-		fmt::print("Inner exception: '{}'.\n", e.what());
-		client.disconnect([](boost::system::error_code e){ fmt::print("disconnect handle..."); });
-	}
-	catch(...)
-	{
-		fmt::print("Inner exception: 'unknown'.\n");
+		fmt::print("[detected fail] - try to disconnect.\n");
+		auto ret = co_await client.disconnect();
+		if(!ret) fmt::print("[detected fail] - disconnect failed: ignore.\n");
+		if(state.has_error()) fmt::print("[detected fail] - Fail by error: '{}'.\n", state.error().message());
+		if(state.has_exception()) fmt::print("[detected fail] - Fail by exception.\n");
 	}
 }
 
