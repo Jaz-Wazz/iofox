@@ -1,43 +1,83 @@
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/experimental/coro.hpp>
-#include <boost/asio/experimental/co_spawn.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/outcome.hpp>
 #include <coroutine>
 #include <fmt/core.h>
+#include <iostream>
 #include <string>
+#include <variant>
 
-namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;	// NOLINT.
-namespace asio = boost::asio;					// NOLINT.
+template <typename Result, typename Error> class Expected {
+public:
+  struct promise_type {
+    Expected *expected;
+    Expected get_return_object() { return {*this}; }
+    void return_value(Expected result) { *expected = std::move(result); }
 
-auto some_foo() -> asio::awaitable<int>
+    std::suspend_never initial_suspend() const noexcept { return {}; }
+    std::suspend_never final_suspend() const noexcept { return {}; }
+
+    void unhandled_exception() noexcept {}
+  };
+
+  struct Awaiter {
+    Expected expected;
+
+    bool await_ready() { return expected.is_result(); }
+    Result await_resume() { return expected.result(); }
+    void await_suspend(std::coroutine_handle<promise_type> handle) {
+      *handle.promise().expected = expected;
+      handle.destroy();
+    }
+  };
+
+  template <typename T> Expected(T t) : m_value{std::move(t)} {}
+
+  bool is_result() const { return m_value.index() == 1; }
+  Result result() const { return *std::get_if<1>(&m_value); }
+
+  bool is_error() const { return m_value.index() == 2; }
+  Error error() const { return *std::get_if<2>(&m_value); }
+
+  template <typename T> Expected &operator=(T t) {
+    m_value = std::move(t);
+    return *this;
+  }
+
+  Awaiter operator co_await() { return Awaiter{*this}; }
+
+private:
+  Expected(promise_type &promise) noexcept { promise.expected = this; }
+
+private:
+  std::variant<std::monostate, Result, Error> m_value;
+};
+
+auto some_foo() -> Expected<int, char>
 {
+	// co_return 'x';
+	co_return 10;
+}
+
+auto foo() -> Expected<int, char>
+{
+	auto var = co_await some_foo();
+	fmt::print("Succes: '{}'.\n", var);
 	co_return 5;
-}
 
-auto foo() -> asio::awaitable<asio::awaitable<int>>
-{
-	asio::awaitable<int> aw = some_foo();
-	co_return aw;
-}
-
-auto coro() -> asio::awaitable<void>
-{
-	auto x = co_await foo();
-	auto y = co_await std::move(x);
-	fmt::print("Value: '{}'.\n", y);
-
-	auto k = co_await co_await foo();
-	fmt::print("Value: '{}'.\n", y);
+	// co_return 5;
+	// co_return 'a';
 }
 
 int main()
 {
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), asio::detached);
-	return ctx.run();
+	auto ret = foo();
+
+	if(ret.is_result())
+	{
+		fmt::print("Result: '{}'.\n", ret.result());
+	}
+	if(ret.is_error())
+	{
+		fmt::print("Error: '{}'.\n", ret.error());
+	}
+
+	return 0;
 }
