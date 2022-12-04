@@ -6,6 +6,10 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/write.hpp>
 #include <boost/core/noncopyable.hpp>
 #include <optional>
 #include <string>
@@ -13,6 +17,7 @@
 #include <winnt.h>
 
 #define asio		boost::asio
+#define beast		boost::beast
 #define this_coro	asio::this_coro
 #define pbl			public:
 #define prv			private:
@@ -75,15 +80,31 @@ namespace nt::http
 {
 	class client
 	{
+		prv std::optional<asio::ip::tcp::socket> sock;
+
 		pbl auto connect(std::string host) -> nt::sys::coro<void>
 		{
 			auto hosts = co_await nt::dns::resolve("http", host);
-
-			co_return;
+			sock.emplace(co_await this_coro::executor);
+			co_await asio::async_connect(*sock, hosts, nt::sys::use_coro);
 		}
-		pbl auto send_request() -> nt::sys::coro<void> { co_return; }
-		pbl auto read_response() -> nt::sys::coro<void> { co_return; }
-		pbl auto disconnect() -> nt::sys::coro<void> { co_return; }
+
+		pbl auto write(auto & request) -> nt::sys::coro<void>
+		{
+			co_await beast::http::async_write(*sock, request, nt::sys::use_coro);
+		}
+
+		pbl auto read(auto & response) -> nt::sys::coro<void>
+		{
+			beast::flat_buffer buf;
+			co_await beast::http::async_read(*sock, buf, response, nt::sys::use_coro);
+		}
+
+		pbl void disconnect()
+		{
+			sock->shutdown(sock->shutdown_both);
+			sock->close();
+		}
 	};
 }
 
@@ -100,6 +121,7 @@ namespace nt::sys::windows
 }
 
 #undef asio
+#undef beast
 #undef this_coro
 #undef pbl
 #undef prv
