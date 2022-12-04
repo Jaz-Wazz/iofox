@@ -5,31 +5,29 @@
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <boost/core/noncopyable.hpp>
-#include <boost/outcome/outcome.hpp>
-#include <boost/outcome/try.hpp>
-#include <as_result.hpp>
-#include <boost/outcome/success_failure.hpp>
-#include <exception>
 #include <optional>
 #include <string>
 #include <utility>
+#include <winnt.h>
 
 #define asio		boost::asio
 #define this_coro	asio::this_coro
-#define oc			BOOST_OUTCOME_V2_NAMESPACE
 #define pbl			public:
 #define prv			private:
-#define nt_check(x)	if(!x) co_return x.as_failure();
-#define nt_try(x)	BOOST_OUTCOME_CO_TRYX(x)
-#define nt_async(x)	BOOST_OUTCOME_CO_TRYX(co_await x)
 
-namespace nt
+namespace nt::sys
 {
-	template <typename T> using result = asio::awaitable<oc::outcome<T>>;
-	constexpr auto success(auto... args) { return oc::success(std::forward<decltype(args)>(args)...); }
-
-	inline auto use_result() { return as_result(asio::use_awaitable); }
+	template <typename T> using coro = asio::awaitable<T>;
+	constexpr asio::use_awaitable_t<> use_coro;
+	constexpr class
+	{
+		pbl void operator ()(std::exception_ptr ptr) const
+		{
+			if(ptr) std::rethrow_exception(ptr);
+		}
+	} rethrowed;
 
 	template <typename T> class service: boost::noncopyable
 	{
@@ -43,29 +41,65 @@ namespace nt
 			pbl void shutdown() {}
 		};
 
-		pbl auto get_or_make(auto... args) -> nt::result<std::reference_wrapper<T>> try
+		pbl auto get_or_make(auto... args) -> nt::sys::coro<std::reference_wrapper<T>>
 		{
 			auto && context = (co_await this_coro::executor).context();
 			if(!asio::has_service<serv>(context)) asio::make_service<serv>(context);
 			serv & s = asio::use_service<serv>(context);
 			if(!s) s.emplace(std::forward<decltype(args)>(args)...);
 			co_return s.value();
-		} catch(...) { co_return std::current_exception(); }
-    };
+    	}
+	};
 }
 
 namespace nt::dns
 {
-	inline auto resolve(std::string protocol, std::string host) -> nt::result<asio::ip::tcp::resolver::results_type>
+	inline auto resolve(std::string protocol, std::string host) -> nt::sys::coro<asio::ip::tcp::resolver::results_type>
 	{
-		nt::service<asio::ip::tcp::resolver> service;
-		auto & resolver = nt_async(service.get_or_make(co_await this_coro::executor)).get();
-		co_return nt_async(resolver.async_resolve(host, protocol, nt::use_result()));
+		nt::sys::service<asio::ip::tcp::resolver> service;
+		auto & resolver = (co_await service.get_or_make(co_await this_coro::executor)).get();
+		co_return co_await resolver.async_resolve(host, protocol, nt::sys::use_coro);
+	}
+}
+
+namespace nt::ssl
+{
+	inline auto context() -> nt::sys::coro<std::reference_wrapper<asio::ssl::context>>
+	{
+		nt::sys::service<asio::ssl::context> service;
+		co_return co_await service.get_or_make(asio::ssl::context::tlsv13_client);
+	}
+}
+
+namespace nt::http
+{
+	class client
+	{
+		pbl auto connect(std::string host) -> nt::sys::coro<void>
+		{
+			auto hosts = co_await nt::dns::resolve("http", host);
+
+			co_return;
+		}
+		pbl auto send_request() -> nt::sys::coro<void> { co_return; }
+		pbl auto read_response() -> nt::sys::coro<void> { co_return; }
+		pbl auto disconnect() -> nt::sys::coro<void> { co_return; }
+	};
+}
+
+namespace nt::sys::windows
+{
+	// Windows language codes.
+	enum class lang: LANGID { english = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US) };
+
+	// Change boost message language in Windows for this thread.
+	inline void set_asio_message_locale(lang code)
+	{
+		SetThreadUILanguage(static_cast<LANGID>(code));
 	}
 }
 
 #undef asio
 #undef this_coro
-#undef oc
 #undef pbl
 #undef prv

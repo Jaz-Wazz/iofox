@@ -3,6 +3,8 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -13,51 +15,28 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto foo() -> nt::result<void>
+auto coro() -> nt::sys::coro<void>
 {
-	// nt::service<int> service;
-	// auto x = co_await service.get_or_make(10);
-	// nt_check(x);
-
-	// auto && executor = co_await this_coro::executor;
-	// auto y = co_await asio::steady_timer(executor, 5s).async_wait(nt::use_result);
-	// nt_check(y);
-
-	// if(auto ret = co_await nt::async_try(foo))
+	// for(auto host : co_await nt::dns::resolve("http", "exmaple.com"))
 	// {
-
-	// }
-	// {
-
+	// 	fmt::print("Host: '{}'.\n", host.endpoint().address().to_string());
 	// }
 
-	// nt::async_catch(send_page, [](std::exception & e)
-	// {
-	// });
+	nt::http::client client;
+	co_await client.connect("exmaple.com");
 
-	//
+	// client.send_request();
+	// co_await client.disconnect();
 
-	co_return nt::success();
+	co_return;
 }
 
-auto coro() -> nt::result<void>
+int main() try
 {
-	auto hosts = nt_async(nt::dns::resolve("http", "exmaple.com"));
-	for(auto host : hosts) fmt::print("{}.\n", host.host_name());
-	co_return nt::success();
-}
-
-int main()
-{
+	nt::sys::windows::set_asio_message_locale(nt::sys::windows::lang::english);
 	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), [](std::exception_ptr ptr)
-	{
-		if(ptr)
-		{
-			try { std::rethrow_exception(ptr); }
-			catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
-			catch(...) { fmt::print("Exception: 'unknown'.\n"); }
-		}
-	});
+	asio::co_spawn(ctx, coro(), nt::sys::rethrowed);
 	return ctx.run();
 }
+catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
+catch(...) { fmt::print("Exception: 'unknown'.\n"); }
