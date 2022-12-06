@@ -15,18 +15,18 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> nt::sys::coro<void>
 {
-	nt::http::client client;
-	co_await client.connect("exmaple.com");
+	nt::https::client client;
+	co_await client.connect("www.google.com");
 
 	http::request<http::empty_body> request {http::verb::get, "/", 11};
-	request.set("host", "exmaple.com");
+	request.set("host", "www.google.com");
 	co_await client.write(request);
 
 	http::response<http::string_body> response;
 	co_await client.read(response);
 	fmt::print("{}", response.body());
 
-	client.disconnect();
+	co_await client.disconnect();
 }
 
 int main() try
