@@ -14,8 +14,8 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> nt::sys::coro<void>
 {
-	auto token = co_await twitch::get_token("1675248777");
-	fmt::print("Token: '{}'.\nSignature: '{}'.\n", token.value, token.signature);
+	auto playlist = co_await twitch::get_playlist("1675248777");
+	fmt::print("{}", playlist);
 }
 
 int main() try

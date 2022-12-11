@@ -1,9 +1,11 @@
 #pragma once
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/empty_body.hpp>
 #include <boost/json/object.hpp>
 #include <boost/json/parse.hpp>
 #include <boost/json/serialize.hpp>
+#include <fmt/core.h>
 #include <string>
 #include <vector>
 #include <net_tails.hpp>
@@ -113,6 +115,33 @@ namespace twitch
 
 		// Extract token and signature -> Pack to "twitch::token" type.
 		co_return twitch::token {token.at("value").as_string().c_str(), token.at("signature").as_string().c_str()};
+	}
+
+	inline auto get_playlist(std::string id) -> nt::sys::coro<std::string>
+	{
+		// Connect.
+		nt::https::client client;
+		co_await client.connect("usher.ttvnw.net");
+
+		// Get access token.
+		auto token = co_await get_token(id);
+
+		// Generate path with get parameters.
+		auto path = fmt::format("/vod/{}.m3u8?allow_source=true&token={}&sig={}", id, token.value, token.signature);
+
+		// Make request.
+		beast::request<beast::empty_body> request {beast::verb::get, path, 11};
+		request.set("Host", "usher.ttvnw.net");
+
+		// Send request.
+		co_await client.write(request);
+
+		// Recieve response.
+		beast::response<beast::string_body> response;
+		co_await client.read(response);
+
+		// Return m3u8 playlist.
+		co_return response.body();
 	}
 }
 
