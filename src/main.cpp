@@ -22,6 +22,9 @@ namespace http = beast::http;			// NOLINT.
 namespace json = boost::json;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
+#define pbl public:
+#define prv private:
+
 auto json_format(const auto & str) -> std::string
 {
 	// Copy string.
@@ -95,7 +98,14 @@ auto json_format(const auto & str) -> std::string
 
 namespace twitch
 {
-	auto get_vods(std::string channel) -> nt::sys::coro<void>
+	class video
+	{
+		pbl const std::string id;
+		pbl const std::string date;
+		pbl const std::string title;
+	};
+
+	auto get_videos(std::string channel) -> nt::sys::coro<std::vector<twitch::video>>
 	{
 		// Connect.
 		nt::https::client client;
@@ -127,22 +137,32 @@ namespace twitch
 		http::response<http::string_body> response;
 		co_await client.read(response);
 
-		// Parse.
-		auto videos = json::parse(response.body()).at_pointer("/0/data/user/videos/edges").as_array();
+		// Prepare return result.
+		std::vector<twitch::video> videos;
 
-		for(auto & video : videos)
+		// Parse.
+		auto edges = json::parse(response.body()).at_pointer("/0/data/user/videos/edges").as_array();
+
+		// Extract video information.
+		for(auto & video : edges)
 		{
-			std::string id		= video.at_pointer("/node/id").as_string().c_str();
-			std::string date	= video.at_pointer("/node/publishedAt").as_string().c_str();
-			std::string title	= video.at_pointer("/node/title").as_string().c_str();
-			fmt::print("{:>11}{:>25}{:>60}\n", id, date, title);
+			auto id		= video.at_pointer("/node/id").as_string().c_str();
+			auto date	= video.at_pointer("/node/publishedAt").as_string().c_str();
+			auto title	= video.at_pointer("/node/title").as_string().c_str();
+			videos.push_back({id, date, title});
 		}
+
+		// Return videos.
+		co_return videos;
 	}
 }
 
 auto coro() -> nt::sys::coro<void>
 {
-	co_await twitch::get_vods("zakvielchannel");
+	for(auto video : co_await twitch::get_videos("zakvielchannel"))
+	{
+		fmt::print("{:>11}{:>25}{:>60}\n", video.id, video.date, video.title);
+	}
 }
 
 int main() try
