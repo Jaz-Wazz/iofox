@@ -29,11 +29,14 @@ auto json_format(const auto & str) -> std::string
 	// Iterate each char.
 	for(int i = 0, tabs = 0, text = false; i <= x.length(); i++)
 	{
-		if(x[i] == '"')
-		{
-			text = !text;
-		}
-		if(text == false && x[i] == ',')
+		// Detect text blocks.
+		if(x[i] == '"') text = !text;
+
+		// Skip format in text block.
+		if(text) continue;
+
+		// Formating.
+		if(x[i] == ',')
 		{
 			// Move content after ',' to new line and tabulate.
 			x.insert(i + 1, "\n");
@@ -42,7 +45,7 @@ auto json_format(const auto & str) -> std::string
 			// Move index.
 			i += 1 + tabs;
 		}
-		if(text == false && x[i] == '{' || x[i] == '[')
+		if(x[i] == '{' || x[i] == '[')
 		{
 			// Increasure tabs.
 			tabs++;
@@ -54,7 +57,7 @@ auto json_format(const auto & str) -> std::string
 			// Move index.
 			i += 1 + tabs;
 		}
-		if(text == false && x[i] == '}' || x[i] == ']')
+		if(x[i] == '}' || x[i] == ']')
 		{
 			// Decreasure tabs.
 			tabs--;
@@ -66,7 +69,7 @@ auto json_format(const auto & str) -> std::string
 			// Move index.
 			i += 1 + tabs;
 		}
-		if(text == false && x[i] == ':' && (x[i + 1] == '{' || x[i + 1] == '['))
+		if(x[i] == ':' && (x[i + 1] == '{' || x[i + 1] == '['))
 		{
 			// Move '{' to new line and tabulate.
 			x.insert(i + 1, "\n");
@@ -75,7 +78,7 @@ auto json_format(const auto & str) -> std::string
 			// Move index.
 			i += 1 + tabs;
 		}
-		if(text == false && x[i] == ':' && (x[i + 1] != '{' || x[i + 1] != '['))
+		if(x[i] == ':' && (x[i + 1] != '{' || x[i + 1] != '['))
 		{
 			// Add space after ':'.
 			x.insert(i + 1, " ");
