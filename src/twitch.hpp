@@ -22,6 +22,12 @@ namespace twitch
 		pbl const std::string title;
 	};
 
+	class token
+	{
+		pbl const std::string value;
+		pbl const std::string signature;
+	};
+
 	inline auto get_videos(std::string channel) -> nt::sys::coro<std::vector<twitch::video>>
 	{
 		// Connect.
@@ -71,6 +77,42 @@ namespace twitch
 
 		// Return videos.
 		co_return videos;
+	}
+
+	inline auto get_token(std::string id) -> nt::sys::coro<token>
+	{
+		// Connect.
+		nt::https::client client;
+		co_await client.connect("gql.twitch.tv");
+
+		// Prepare gql query.
+		auto query =
+		"query PlaybackAccessToken_Template($vodID: ID!)"
+		"{videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: \"site\"})"
+		"{value signature}}";
+
+		// Generate gql request.
+		json::object gql_request = {{"operationName", "PlaybackAccessToken_Template"}, {"query", query}, {"variables", {{"vodID", id}}}};
+
+		// Make request.
+		beast::request<beast::string_body> request {beast::verb::post, "/gql", 11};
+		request.set("Host", "gql.twitch.tv");
+		request.set("Client-Id", "kimne78kx3ncx6brgo4mv6wki5h1ko");
+		request.body() = json::serialize(gql_request);
+		request.prepare_payload();
+
+		// Send request.
+		co_await client.write(request);
+
+		// Recieve response.
+		beast::response<beast::string_body> response;
+		co_await client.read(response);
+
+		// Parse.
+		auto token = json::parse(response.body()).at_pointer("/data/videoPlaybackAccessToken").as_object();
+
+		// Extract token and signature -> Pack to "twitch::token" type.
+		co_return twitch::token {token.at("value").as_string().c_str(), token.at("signature").as_string().c_str()};
 	}
 }
 
