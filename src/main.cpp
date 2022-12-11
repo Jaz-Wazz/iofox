@@ -23,35 +23,6 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 void print_json(json::value value)
 {
-	// fmt::print("{}\n\n", json::serialize(value));
-
-	// if(auto el = value.if_array())
-	// {
-	// 	fmt::print("[\n");
-	// 	fmt::print("\t{}\n", json::serialize(*el));
-	// 	fmt::print("]\n");
-	// }
-
-	// json::array arr = {{}, {}, {}, {}};
-	// value = value.at(0);
-
-	// fmt::print("{}\n\n", json::serialize(value));
-
-	// if(auto array = value.if_array())
-	// {
-	// 	fmt::print("[\n");
-	// 	for(auto el : *array) fmt::print("\t{}\n", json::serialize(el));
-	// 	fmt::print("]\n");
-	// }
-
-	// if(auto object = value.if_object())
-	// {
-	// 	fmt::print("{}\n", "{");
-	// 	// for(auto el : *object) fmt::print("\t\"{}\": {},\n", el.key(), json::serialize(el.value()));
-	// 	for(auto & el : *object) fmt::print("\t\"{}\": {},\n", el.key(), json::serialize(el.value()));
-	// 	fmt::print("{}\n", "}");
-	// }
-
 	auto x = json::serialize(value);
 	fmt::print("{}\n\n", x);
 
@@ -59,25 +30,53 @@ void print_json(json::value value)
 	{
 		if(x[i] == ',')
 		{
+			// Move content after ',' to new line and tabulate.
 			x.insert(i + 1, "\n");
-			for(int j = 0; j < tabs; j++) x.insert(i + 2, "\t");
+			x.insert(i + 2, tabs, '\t');
+
+			// Move index.
+			i += 1 + tabs;
 		}
 		if(x[i] == '{' || x[i] == '[')
 		{
-			x.insert(i, "\n");
-			for(int j = 0; j < tabs; j++) x.insert(i + 1, "\t");
-			i += 1 + tabs;
-
+			// Increasure tabs.
 			tabs++;
+
+			// Move content after '{' to new line and tabulate.
 			x.insert(i + 1, "\n");
-			for(int j = 0; j < tabs; j++) x.insert(i + 2, "\t");
+			x.insert(i + 2, tabs, '\t');
+
+			// Move index.
+			i += 1 + tabs;
 		}
 		if(x[i] == '}' || x[i] == ']')
 		{
+			// Decreasure tabs.
 			tabs--;
+
+			// Move '}' to new line and tabulate.
 			x.insert(i, "\n");
-			for(int j = 0; j < tabs; j++) x.insert(i + 1, "\t");
+			x.insert(i + 1, tabs, '\t');
+
+			// Move index.
 			i += 1 + tabs;
+		}
+		if(x[i] == ':' && x[i + 1] == '{')
+		{
+			// Move '{' to new line and tabulate.
+			x.insert(i + 1, "\n");
+			x.insert(i + 2, tabs, '\t');
+
+			// Move index.
+			i += 1 + tabs;
+		}
+		if(x[i] == ':' && x[i + 1] != '{')
+		{
+			// Add space after ':'.
+			x.insert(i + 1, " ");
+
+			// Move index.
+			i += 1;
 		}
 	}
 
