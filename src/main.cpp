@@ -8,6 +8,7 @@
 #include <boost/json/array.hpp>
 #include <boost/json/object.hpp>
 #include <boost/json/serialize.hpp>
+#include <boost/json/parse.hpp>
 #include <boost/json/value.hpp>
 #include <fstream>
 #include <iostream>
@@ -94,14 +95,14 @@ auto json_format(const auto & str) -> std::string
 
 namespace twitch
 {
-	auto get_vods() -> nt::sys::coro<void>
+	auto get_vods(std::string channel) -> nt::sys::coro<void>
 	{
 		// Connect.
 		nt::https::client client;
 		co_await client.connect("gql.twitch.tv");
 
 		// Prepare gql data.
-		const json::object vars = {{"limit", 30}, {"channelOwnerLogin", "zakvielchannel"}, {"broadcastType", "ARCHIVE"}, {"videoSort", "TIME"}};
+		const json::object vars = {{"limit", 30}, {"channelOwnerLogin", channel}, {"broadcastType", "ARCHIVE"}, {"videoSort", "TIME"}};
 		const json::object query = {{"version", 1}, {"sha256Hash", "a937f1d22e269e39a03b509f65a7490f9fc247d7f83d6ac1421523e3b68042cb"}};
 
 		// Generate gql request.
@@ -126,30 +127,22 @@ namespace twitch
 		http::response<http::string_body> response;
 		co_await client.read(response);
 
-		// Print.
-		fmt::print("{}\n\n", response.body());
-		std::ofstream("1.txt") << json_format(response.body());
+		// Parse.
+		auto videos = json::parse(response.body()).at_pointer("/0/data/user/videos/edges").as_array();
+
+		for(auto & video : videos)
+		{
+			std::string id		= video.at_pointer("/node/id").as_string().c_str();
+			std::string date	= video.at_pointer("/node/publishedAt").as_string().c_str();
+			std::string title	= video.at_pointer("/node/title").as_string().c_str();
+			fmt::print("{:>11}{:>25}{:>60}\n", id, date, title);
+		}
 	}
 }
 
 auto coro() -> nt::sys::coro<void>
 {
-	co_await twitch::get_vods();
-
-	// nt::https::client client;
-	// co_await client.connect("www.twitch.tv");
-
-	// http::request<http::empty_body> request {http::verb::get, "/zakvielchannel/videos?filter=archives&sort=time", 11};
-	// request.set("host", "www.twitch.tv");
-	// co_await client.write(request);
-
-	// http::response<http::string_body> response;
-	// co_await client.read(response);
-	// // fmt::print("{}", response);
-	// std::cout << response;
-
-	// co_await client.disconnect();
-	co_return;
+	co_await twitch::get_vods("zakvielchannel");
 }
 
 int main() try
