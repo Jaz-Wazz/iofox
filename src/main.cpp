@@ -21,11 +21,12 @@ namespace http = beast::http;			// NOLINT.
 namespace json = boost::json;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-void print_json(json::value value)
+auto json_format(const auto && str) -> std::string
 {
-	auto x = json::serialize(value);
-	fmt::print("{}\n\n", x);
+	// Copy string.
+	std::string x = str;
 
+	// Iterate each char.
 	for(int i = 0, tabs = 0; i <= x.length(); i++)
 	{
 		if(x[i] == ',')
@@ -80,8 +81,8 @@ void print_json(json::value value)
 		}
 	}
 
-	fmt::print("{}\n\n", x);
-	std::ofstream("1.txt") << x;
+	// Return string.
+	return x;
 }
 
 namespace twitch
@@ -103,8 +104,8 @@ namespace twitch
 			}
 		};
 
-		// fmt::print("{}", json::serialize(arr));
-		print_json(arr);
+		fmt::print("{}\n\n", json::serialize(arr));
+		fmt::print("{}\n\n", json_format(json::serialize(arr)));
 		co_return;
 	}
 }
