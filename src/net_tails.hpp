@@ -15,6 +15,7 @@
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <uriparser/Uri.h>
 #include <fmt/core.h>
 #include <openssl/tls1.h>
 #include <optional>
@@ -182,6 +183,60 @@ namespace nt::sys::windows
 	{
 		SetThreadUILanguage(static_cast<LANGID>(code));
 	}
+}
+
+namespace nt
+{
+	// Basic url object.
+	class url
+	{
+		prv UriUriA uri;
+		prv std::string str;
+
+		pbl url(std::string str): str(std::move(str))
+		{
+			const char * error_pos;
+			auto ret = uriParseSingleUriA(&uri, this->str.data(), &error_pos);
+			if(ret != URI_SUCCESS) throw std::runtime_error("Url parse error");
+		}
+
+		pbl auto protocol() -> std::string
+		{
+			return {uri.scheme.first, uri.scheme.afterLast};
+		}
+
+		pbl auto host() -> std::string
+		{
+			return {uri.hostText.first, uri.hostText.afterLast};
+		}
+
+		pbl auto path() -> std::string
+		{
+			if(uri.pathHead == nullptr || uri.pathTail == nullptr) return "/";
+			return {uri.pathHead->text.first, uri.pathTail->text.afterLast};
+		}
+
+		pbl auto query() -> std::string
+		{
+			return {uri.query.first, uri.query.afterLast};
+		}
+
+		pbl auto fragment() -> std::string
+		{
+			return {uri.fragment.first, uri.fragment.afterLast};
+		}
+
+		pbl auto location() -> std::string
+		{
+			if(uri.pathHead == nullptr || uri.pathTail == nullptr) return "/";
+			return '/' + std::string(uri.pathHead->text.first, const_cast<const char *>(str.data() + str.size()));
+		}
+
+		pbl ~url()
+		{
+			uriFreeUriMembersA(&uri);
+		}
+	};
 }
 
 #undef asio

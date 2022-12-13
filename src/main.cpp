@@ -14,8 +14,14 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> nt::sys::coro<void>
 {
-	auto playlist = co_await twitch::get_playlist("1675248777");
-	fmt::print("{}", playlist);
+	nt::url url {"https://dgeft7w3p.cloudfront.net/024a833_zakvielchannel_402168_170042/chunked/index-dvr.m3u8?key=val&foo=bar#fr"};
+	fmt::print("Protocol: '{}'.\n", url.protocol());
+	fmt::print("Host: '{}'.\n", url.host());
+	fmt::print("Path: '{}'.\n", url.path());
+	fmt::print("Query: '{}'.\n", url.query());
+	fmt::print("Fragment: '{}'.\n", url.fragment());
+	fmt::print("Location: '{}'.\n", url.location());
+	co_return;
 }
 
 int main() try
