@@ -190,51 +190,45 @@ namespace nt
 	// Basic url object.
 	class url
 	{
-		prv UriUriA uri;
-		prv std::string str;
+		pbl std::string protocol;
+		pbl std::string host;
+		pbl std::string path;
+		pbl std::string query;
+		pbl std::string fragment;
 
-		pbl url(std::string str): str(std::move(str))
+		pbl constexpr url() {}
+
+		pbl constexpr url(const char * str): url(std::string(str)) {}
+
+		pbl constexpr url(std::string protocol, std::string host, std::string path = "", std::string query = "", std::string fragment = "")
+		: protocol(protocol), host(host), path(path), query(query), fragment(fragment) {}
+
+		pbl constexpr url(std::string str)
 		{
+			// Parse url data from string.
+			UriUriA uri;
 			const char * error_pos;
-			auto ret = uriParseSingleUriA(&uri, this->str.data(), &error_pos);
-			if(ret != URI_SUCCESS) throw std::runtime_error("Url parse error");
-		}
+			if(uriParseSingleUriA(&uri, str.c_str(), &error_pos) != URI_SUCCESS) throw std::runtime_error("Url parse error");
 
-		pbl auto protocol() -> std::string
-		{
-			return {uri.scheme.first, uri.scheme.afterLast};
-		}
+			// Initialize dynamic strings.
+			protocol	= {uri.scheme.first, uri.scheme.afterLast};
+			host		= {uri.hostText.first, uri.hostText.afterLast};
+			query		= {uri.query.first, uri.query.afterLast};
+			fragment	= {uri.fragment.first, uri.fragment.afterLast};
+			if(uri.pathHead != nullptr || uri.pathTail != nullptr) path = {uri.pathHead->text.first, uri.pathTail->text.afterLast};
 
-		pbl auto host() -> std::string
-		{
-			return {uri.hostText.first, uri.hostText.afterLast};
-		}
-
-		pbl auto path() -> std::string
-		{
-			if(uri.pathHead == nullptr || uri.pathTail == nullptr) return "/";
-			return {uri.pathHead->text.first, uri.pathTail->text.afterLast};
-		}
-
-		pbl auto query() -> std::string
-		{
-			return {uri.query.first, uri.query.afterLast};
-		}
-
-		pbl auto fragment() -> std::string
-		{
-			return {uri.fragment.first, uri.fragment.afterLast};
-		}
-
-		pbl auto location() -> std::string
-		{
-			if(uri.pathHead == nullptr || uri.pathTail == nullptr) return "/";
-			return '/' + std::string(uri.pathHead->text.first, const_cast<const char *>(str.data() + str.size()));
-		}
-
-		pbl ~url()
-		{
+			// Free parser resources.
 			uriFreeUriMembersA(&uri);
+		}
+
+		pbl constexpr auto serialize_location() -> std::string
+		{
+			return '/' + path + (query.empty() ? "" : '?' + query) + (fragment.empty() ? "" : '#' + fragment);
+		}
+
+		pbl constexpr auto serialize() -> std::string
+		{
+			return (protocol.empty() ? "" : protocol + "://") + host + serialize_location();
 		}
 	};
 }
