@@ -31,7 +31,7 @@
 #define pbl			public:
 #define prv			private:
 
-namespace nt::sys
+namespace io
 {
 	// Type of async task, current asio::awaitable<T>.
 	template <typename T> using coro = asio::awaitable<T>;
@@ -61,7 +61,7 @@ namespace nt::sys
 			pbl void shutdown() {}
 		};
 
-		pbl auto get_or_make(auto... args) -> nt::sys::coro<std::reference_wrapper<T>>
+		pbl auto get_or_make(auto... args) -> io::coro<std::reference_wrapper<T>>
 		{
 			auto && context = (co_await this_coro::executor).context();
 			if(!asio::has_service<serv>(context)) asio::make_service<serv>(context);
@@ -70,124 +70,7 @@ namespace nt::sys
 			co_return s.value();
     	}
 	};
-}
 
-namespace nt::dns
-{
-	// Resolve dns record from context-global service.
-	inline auto resolve(std::string protocol, std::string host) -> nt::sys::coro<asio::ip::tcp::resolver::results_type>
-	{
-		nt::sys::service<asio::ip::tcp::resolver> service;
-		auto & resolver = (co_await service.get_or_make(co_await this_coro::executor)).get();
-		co_return co_await resolver.async_resolve(host, protocol, nt::sys::use_coro);
-	}
-}
-
-namespace nt::ssl
-{
-	// Take ssl context instanse from context-global service.
-	inline auto context() -> nt::sys::coro<std::reference_wrapper<asio::ssl::context>>
-	{
-		nt::sys::service<asio::ssl::context> service;
-		co_return co_await service.get_or_make(asio::ssl::context::tlsv13_client);
-	}
-
-	// Set hostname tls extension in stream.
-	constexpr void set_tls_extension_hostname(auto & stream, std::string host)
-	{
-		auto status = SSL_set_tlsext_host_name(stream.native_handle(), host.c_str());
-		if(status == SSL_TLSEXT_ERR_ALERT_FATAL)
-		{
-			// [FIXME] - Use normal error handling in future.
-			throw std::runtime_error(fmt::format("setting tls extension error, code: {}", status));
-		}
-	}
-}
-
-namespace nt::http
-{
-	// Basic http client.
-	class client
-	{
-		prv std::optional<asio::ip::tcp::socket> sock;
-
-		pbl auto connect(std::string host) -> nt::sys::coro<void>
-		{
-			auto hosts = co_await nt::dns::resolve("http", host);
-			sock.emplace(co_await this_coro::executor);
-			co_await asio::async_connect(*sock, hosts, nt::sys::use_coro);
-		}
-
-		pbl auto write(auto & request) -> nt::sys::coro<void>
-		{
-			co_await beast::http::async_write(*sock, request, nt::sys::use_coro);
-		}
-
-		pbl auto read(auto & response) -> nt::sys::coro<void>
-		{
-			beast::flat_buffer buf;
-			co_await beast::http::async_read(*sock, buf, response, nt::sys::use_coro);
-		}
-
-		pbl void disconnect()
-		{
-			sock->shutdown(sock->shutdown_both);
-			sock->close();
-		}
-	};
-}
-
-namespace nt::https
-{
-	// Basic https client.
-	class client
-	{
-		prv std::optional<asio::ssl::stream<asio::ip::tcp::socket>> stream;
-
-		pbl auto connect(std::string host) -> nt::sys::coro<void>
-		{
-			auto hosts = co_await nt::dns::resolve("https", host);
-			stream.emplace(co_await this_coro::executor, co_await nt::ssl::context());
-			co_await asio::async_connect(stream->next_layer(), hosts, nt::sys::use_coro);
-			nt::ssl::set_tls_extension_hostname(*stream, host);
-			co_await stream->async_handshake(stream->client, nt::sys::use_coro);
-		}
-
-		pbl auto write(auto & request) -> nt::sys::coro<void>
-		{
-			co_await beast::http::async_write(*stream, request, nt::sys::use_coro);
-		}
-
-		pbl auto read(auto & response) -> nt::sys::coro<void>
-		{
-			beast::flat_buffer buf;
-			co_await beast::http::async_read(*stream, buf, response, nt::sys::use_coro);
-		}
-
-		pbl auto disconnect() -> nt::sys::coro<void>
-		{
-			auto [err] = co_await stream->async_shutdown(asio::as_tuple(nt::sys::use_coro));
-			stream->next_layer().shutdown(asio::ip::tcp::socket::shutdown_both);
-			stream->next_layer().close();
-			if(err != asio::ssl::error::stream_truncated) throw err;
-		}
-	};
-}
-
-namespace nt::sys::windows
-{
-	// Windows language codes.
-	enum class lang: LANGID { english = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US) };
-
-	// Change boost message language in Windows for this thread.
-	inline void set_asio_message_locale(lang code)
-	{
-		SetThreadUILanguage(static_cast<LANGID>(code));
-	}
-}
-
-namespace io
-{
 	// Basic url object.
 	class url
 	{
@@ -234,8 +117,53 @@ namespace io
 	};
 }
 
+namespace io::dns
+{
+	// Resolve dns record from context-global service.
+	inline auto resolve(std::string protocol, std::string host) -> io::coro<asio::ip::tcp::resolver::results_type>
+	{
+		io::service<asio::ip::tcp::resolver> service;
+		auto & resolver = (co_await service.get_or_make(co_await this_coro::executor)).get();
+		co_return co_await resolver.async_resolve(host, protocol, io::use_coro);
+	}
+}
+
+namespace io::ssl
+{
+	// Take ssl context instanse from context-global service.
+	inline auto context() -> io::coro<std::reference_wrapper<asio::ssl::context>>
+	{
+		io::service<asio::ssl::context> service;
+		co_return co_await service.get_or_make(asio::ssl::context::tlsv13_client);
+	}
+
+	// Set hostname tls extension in stream.
+	constexpr void set_tls_extension_hostname(auto & stream, std::string host)
+	{
+		auto status = SSL_set_tlsext_host_name(stream.native_handle(), host.c_str());
+		if(status == SSL_TLSEXT_ERR_ALERT_FATAL)
+		{
+			// [FIXME] - Use normal error handling in future.
+			throw std::runtime_error(fmt::format("setting tls extension error, code: {}", status));
+		}
+	}
+}
+
+namespace io::windows
+{
+	// Windows language codes.
+	enum class lang: LANGID { english = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US) };
+
+	// Change boost language in Windows for this thread.
+	inline void set_asio_locale(lang code)
+	{
+		SetThreadUILanguage(static_cast<LANGID>(code));
+	}
+}
+
 namespace io::http
 {
+	// Basic high-level http/https client.
 	class client
 	{
 		prv using tcp_stream = asio::ip::tcp::socket;
@@ -243,38 +171,38 @@ namespace io::http
 
 		prv std::variant<tcp_stream, ssl_stream, std::nullopt_t> stream = std::nullopt;
 
-		pbl auto connect(io::url url) -> nt::sys::coro<void>
+		pbl auto connect(io::url url) -> io::coro<void>
 		{
 			if(url.protocol == "http")
 			{
 				stream = tcp_stream(co_await this_coro::executor);
-				auto ips = co_await nt::dns::resolve("http", url.host);
-				co_await asio::async_connect(std::get<tcp_stream>(stream), ips, nt::sys::use_coro);
+				auto ips = co_await io::dns::resolve("http", url.host);
+				co_await asio::async_connect(std::get<tcp_stream>(stream), ips, io::use_coro);
 			}
 			if(url.protocol == "https")
 			{
-				stream = ssl_stream(co_await this_coro::executor, co_await nt::ssl::context());
-				auto ips = co_await nt::dns::resolve("https", url.host);
-				co_await asio::async_connect(std::get<ssl_stream>(stream).next_layer(), ips, nt::sys::use_coro);
-				nt::ssl::set_tls_extension_hostname(std::get<ssl_stream>(stream), url.host);
-				co_await std::get<ssl_stream>(stream).async_handshake(ssl_stream::client, nt::sys::use_coro);
+				stream = ssl_stream(co_await this_coro::executor, co_await io::ssl::context());
+				auto ips = co_await io::dns::resolve("https", url.host);
+				co_await asio::async_connect(std::get<ssl_stream>(stream).next_layer(), ips, io::use_coro);
+				io::ssl::set_tls_extension_hostname(std::get<ssl_stream>(stream), url.host);
+				co_await std::get<ssl_stream>(stream).async_handshake(ssl_stream::client, io::use_coro);
 			}
 		}
 
-		pbl auto write(auto & request) -> nt::sys::coro<void>
+		pbl auto write(auto & request) -> io::coro<void>
 		{
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_write(*s, request, nt::sys::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_write(*s, request, nt::sys::use_coro);
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_write(*s, request, io::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_write(*s, request, io::use_coro);
 		}
 
-		pbl auto read(auto & response) -> nt::sys::coro<void>
+		pbl auto read(auto & response) -> io::coro<void>
 		{
 			beast::flat_buffer buf;
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, nt::sys::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, nt::sys::use_coro);
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, io::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, io::use_coro);
 		}
 
-		pbl auto disconnect() -> nt::sys::coro<void>
+		pbl auto disconnect() -> io::coro<void>
 		{
 			if(auto s = std::get_if<tcp_stream>(&stream))
 			{
@@ -283,7 +211,7 @@ namespace io::http
 			}
 			if(auto s = std::get_if<ssl_stream>(&stream))
 			{
-				auto [err] = co_await s->async_shutdown(asio::as_tuple(nt::sys::use_coro));
+				auto [err] = co_await s->async_shutdown(asio::as_tuple(io::use_coro));
 				s->next_layer().shutdown(tcp_stream::shutdown_both);
 				s->next_layer().close();
 				if(err != asio::ssl::error::stream_truncated) throw err;

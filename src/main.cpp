@@ -15,10 +15,9 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace beast = boost::beast;			// NOLINT.
 namespace http = beast::http;			// NOLINT.
-namespace json = boost::json;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto coro() -> nt::sys::coro<void>
+auto coro() -> io::coro<void>
 {
 	io::http::client client;
 	co_await client.connect("https://adbtc.top");
@@ -37,9 +36,9 @@ auto coro() -> nt::sys::coro<void>
 
 int main() try
 {
-	nt::sys::windows::set_asio_message_locale(nt::sys::windows::lang::english);
+	io::windows::set_asio_locale(io::windows::lang::english);
 	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), nt::sys::rethrowed);
+	asio::co_spawn(ctx, coro(), io::rethrowed);
 	return ctx.run();
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
