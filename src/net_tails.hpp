@@ -21,6 +21,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <variant>
 #include <utility>
 #include <winnt.h>
 
@@ -185,7 +186,7 @@ namespace nt::sys::windows
 	}
 }
 
-namespace nt
+namespace io
 {
 	// Basic url object.
 	class url
@@ -232,6 +233,64 @@ namespace nt
 		}
 	};
 }
+
+namespace io::http
+{
+	class client
+	{
+		prv using tcp_stream = asio::ip::tcp::socket;
+		prv using ssl_stream = asio::ssl::stream<asio::ip::tcp::socket>;
+
+		prv std::variant<tcp_stream, ssl_stream, std::nullopt_t> stream = std::nullopt;
+
+		pbl auto connect(io::url url) -> nt::sys::coro<void>
+		{
+			if(url.protocol == "http")
+			{
+				stream = tcp_stream(co_await this_coro::executor);
+				auto ips = co_await nt::dns::resolve("http", url.host);
+				co_await asio::async_connect(std::get<tcp_stream>(stream), ips, nt::sys::use_coro);
+			}
+			if(url.protocol == "https")
+			{
+				stream = ssl_stream(co_await this_coro::executor, co_await nt::ssl::context());
+				auto ips = co_await nt::dns::resolve("https", url.host);
+				co_await asio::async_connect(std::get<ssl_stream>(stream).next_layer(), ips, nt::sys::use_coro);
+				nt::ssl::set_tls_extension_hostname(std::get<ssl_stream>(stream), url.host);
+				co_await std::get<ssl_stream>(stream).async_handshake(ssl_stream::client, nt::sys::use_coro);
+			}
+		}
+
+		pbl auto write(auto & request) -> nt::sys::coro<void>
+		{
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_write(*s, request, nt::sys::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_write(*s, request, nt::sys::use_coro);
+		}
+
+		pbl auto read(auto & response) -> nt::sys::coro<void>
+		{
+			beast::flat_buffer buf;
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, nt::sys::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, nt::sys::use_coro);
+		}
+
+		pbl auto disconnect() -> nt::sys::coro<void>
+		{
+			if(auto s = std::get_if<tcp_stream>(&stream))
+			{
+				s->shutdown(s->shutdown_both);
+				s->close();
+			}
+			if(auto s = std::get_if<ssl_stream>(&stream))
+			{
+				auto [err] = co_await s->async_shutdown(asio::as_tuple(nt::sys::use_coro));
+				s->next_layer().shutdown(tcp_stream::shutdown_both);
+				s->next_layer().close();
+				if(err != asio::ssl::error::stream_truncated) throw err;
+			}
+		}
+	};
+};
 
 #undef asio
 #undef beast
