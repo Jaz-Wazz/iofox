@@ -26,12 +26,17 @@ auto coro() -> io::coro<void>
 	request.set("host", "adbtc.top");
 	co_await client.write(request);
 
-	http::response<http::string_body> response;
-	co_await client.read(response);
+	http::response_header<> response_header;
+	co_await client.read_header(response_header);
+	std::cout << response_header << '\n';
 
-	std::cout << response;
+	char buf[10];
+	while(auto readed = co_await client.read_body(buf, 10))
+	{
+		fmt::print("read {} bytes: '{}'.\n", *readed, std::string(buf, *readed));
+	}
 
-	co_await client.disconnect();
+	client.disconnect();
 }
 
 int main() try

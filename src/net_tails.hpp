@@ -12,9 +12,12 @@
 #include <boost/asio/as_tuple.hpp>
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
+#include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <system_error>
 #include <uriparser/Uri.h>
 #include <fmt/core.h>
 #include <openssl/tls1.h>
@@ -168,8 +171,11 @@ namespace io::http
 	{
 		prv using tcp_stream = asio::ip::tcp::socket;
 		prv using ssl_stream = asio::ssl::stream<asio::ip::tcp::socket>;
+		prv using response_parser = beast::http::response_parser<beast::http::buffer_body>;
 
 		prv std::variant<tcp_stream, ssl_stream, std::nullopt_t> stream = std::nullopt;
+		prv std::optional<response_parser> parser;
+		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
 		{
@@ -197,12 +203,43 @@ namespace io::http
 
 		pbl auto read(auto & response) -> io::coro<void>
 		{
-			beast::flat_buffer buf;
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, io::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, buf, response, io::use_coro);
+			if(!buf) buf.emplace();
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, *buf, response, io::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, *buf, response, io::use_coro);
 		}
 
-		pbl auto disconnect() -> io::coro<void>
+		pbl auto read_header(auto & response_header) -> io::coro<void>
+		{
+			if(!buf) buf.emplace();
+			if(!parser) parser.emplace();
+			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
+			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
+			response_header = parser->get().base();
+		}
+
+		pbl auto read_body(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
+		{
+			if(!buf) buf.emplace();
+			if(!parser) parser.emplace();
+			if(!parser->is_done())
+			{
+				parser->get().body().data = buffer;
+				parser->get().body().size = size;
+				if(auto s = std::get_if<tcp_stream>(&stream))
+				{
+					auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
+					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+				}
+				if(auto s = std::get_if<ssl_stream>(&stream))
+				{
+					auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
+					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+				}
+				co_return size - parser->get().body().size;
+			} else co_return std::nullopt;
+		}
+
+		pbl void disconnect()
 		{
 			if(auto s = std::get_if<tcp_stream>(&stream))
 			{
@@ -211,10 +248,8 @@ namespace io::http
 			}
 			if(auto s = std::get_if<ssl_stream>(&stream))
 			{
-				auto [err] = co_await s->async_shutdown(asio::as_tuple(io::use_coro));
 				s->next_layer().shutdown(tcp_stream::shutdown_both);
 				s->next_layer().close();
-				if(err != asio::ssl::error::stream_truncated) throw err;
 			}
 		}
 	};
