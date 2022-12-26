@@ -264,7 +264,11 @@ namespace io::http
 	// Basic request object without body.
 	template <> class request<void>: public beast::http::request<beast::http::empty_body>
 	{
+		prv using base = beast::http::request<beast::http::empty_body>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
 
 		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
 		{
@@ -277,7 +281,11 @@ namespace io::http
 	// Basic request object with string body.
 	template <> class request<std::string>: public beast::http::request<beast::http::string_body>
 	{
+		prv using base = beast::http::request<beast::http::string_body>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
 
 		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
 		{
@@ -301,7 +309,11 @@ namespace io::http
 	// Basic response object without body.
 	template <> class response<void>: public beast::http::response<beast::http::empty_body>
 	{
+		prv using base = beast::http::response<beast::http::empty_body>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
 
 		pbl response(unsigned int result = 200, header_list headers = {})
 		{
@@ -313,7 +325,11 @@ namespace io::http
 	// Basic response object with string body.
 	template <> class response<std::string>: public beast::http::response<beast::http::string_body>
 	{
+		prv using base = beast::http::response<beast::http::string_body>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
 
 		pbl response(unsigned int result = 200, header_list headers = {})
 		{
@@ -326,6 +342,39 @@ namespace io::http
 			this->result(result);
 			for(auto && [header, value] : headers) this->insert(header, value);
 			this->body() = body;
+		}
+	};
+
+	// Basic request header object.
+	class request_header: public beast::http::request_header<>
+	{
+		prv using base = beast::http::request_header<>;
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
+
+		pbl request_header(std::string method = "GET", std::string target = "/", header_list headers = {})
+		{
+			this->method_string(method);
+			this->target(target);
+			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+	};
+
+	// Basic response header object.
+	class response_header: public beast::http::response_header<>
+	{
+		prv using base = beast::http::response_header<>;
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl using base::operator=;
+		pbl using base::operator[];
+
+		pbl response_header(unsigned int result = 200, header_list headers = {})
+		{
+			this->result(result);
+			for(auto && [header, value] : headers) this->insert(header, value);
 		}
 	};
 };
