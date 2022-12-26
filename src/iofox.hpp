@@ -294,6 +294,40 @@ namespace io::http
 			this->body() = body;
 		}
 	};
+
+	// Basic response object.
+	template <typename T = void> class response;
+
+	// Basic response object without body.
+	template <> class response<void>: public beast::http::response<beast::http::empty_body>
+	{
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl response(unsigned int result = 200, header_list headers = {})
+		{
+			this->result(result);
+			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+	};
+
+	// Basic response object with string body.
+	template <> class response<std::string>: public beast::http::response<beast::http::string_body>
+	{
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl response(unsigned int result = 200, header_list headers = {})
+		{
+			this->result(result);
+			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+
+		pbl response(unsigned int result, header_list headers, const std::string & body)
+		{
+			this->result(result);
+			for(auto && [header, value] : headers) this->insert(header, value);
+			this->body() = body;
+		}
+	};
 };
 
 #undef asio
