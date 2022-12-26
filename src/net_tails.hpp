@@ -12,11 +12,15 @@
 #include <boost/asio/as_tuple.hpp>
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/read.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <initializer_list>
 #include <system_error>
 #include <uriparser/Uri.h>
 #include <fmt/core.h>
@@ -251,6 +255,43 @@ namespace io::http
 				s->next_layer().shutdown(tcp_stream::shutdown_both);
 				s->next_layer().close();
 			}
+		}
+	};
+
+	// Basic request object.
+	template <typename T = void> class request;
+
+	// Basic request object without body.
+	template <> class request<void>: public beast::http::request<beast::http::empty_body>
+	{
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
+		{
+			this->method_string(method);
+			this->target(target);
+			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+	};
+
+	// Basic request object with string body.
+	template <> class request<std::string>: public beast::http::request<beast::http::string_body>
+	{
+		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+
+		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
+		{
+			this->method_string(method);
+			this->target(target);
+			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+
+		pbl request(std::string method, std::string target, header_list headers, const std::string & body)
+		{
+			this->method_string(method);
+			this->target(target);
+			for(auto && [header, value] : headers) this->insert(header, value);
+			this->body() = body;
 		}
 	};
 };

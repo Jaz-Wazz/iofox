@@ -22,8 +22,7 @@ auto coro() -> io::coro<void>
 	io::http::client client;
 	co_await client.connect("https://adbtc.top");
 
-	http::request<http::empty_body> request {http::verb::get, "/", 11};
-	request.set("host", "adbtc.top");
+	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
 	co_await client.write(request);
 
 	http::response_header<> response_header;
