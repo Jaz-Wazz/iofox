@@ -7,7 +7,7 @@
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/write.hpp>
 #include <fmt/core.h>
-#include <net_tails.hpp>
+#include <iofox.hpp>
 #include <twitch.hpp>
 #include <util.hpp>
 #include <iostream>
