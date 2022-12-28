@@ -13,6 +13,7 @@
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/file_body.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/read.hpp>
@@ -22,6 +23,7 @@
 #include <boost/core/noncopyable.hpp>
 #include <initializer_list>
 #include <system_error>
+#include <type_traits>
 #include <uriparser/Uri.h>
 #include <fmt/core.h>
 #include <openssl/tls1.h>
@@ -175,10 +177,13 @@ namespace io::http
 	{
 		prv using tcp_stream = asio::ip::tcp::socket;
 		prv using ssl_stream = asio::ssl::stream<asio::ip::tcp::socket>;
-		prv using response_parser = beast::http::response_parser<beast::http::buffer_body>;
+		prv using parser_buffer = beast::http::response_parser<beast::http::buffer_body>;
+		prv using parser_string = beast::http::response_parser<beast::http::string_body>;
+		prv using parser_empty = beast::http::response_parser<beast::http::empty_body>;
+		prv using parser_file = beast::http::response_parser<beast::http::file_body>;
 
 		prv std::variant<tcp_stream, ssl_stream, std::nullopt_t> stream = std::nullopt;
-		prv std::optional<response_parser> parser;
+		prv std::variant<parser_buffer, parser_string, parser_empty, parser_file, std::nullopt_t> parser = std::nullopt;
 		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
@@ -208,39 +213,52 @@ namespace io::http
 		pbl auto read(auto & response) -> io::coro<void>
 		{
 			if(!buf) buf.emplace();
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read(*s, *buf, response, io::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read(*s, *buf, response, io::use_coro);
+			parser.emplace<beast::http::response_parser<typename std::remove_reference_t<decltype(response)>::body_type>>(std::move(response));
+
+			co_await std::visit([&](auto && s, auto && p) -> io::coro<void>
+			{
+				if constexpr (typeid(decltype(s)) != typeid(std::nullopt_t) && typeid(decltype(p)) != typeid(std::nullopt_t))
+				{
+					co_await beast::http::async_read(s, *buf, p, io::use_coro);
+
+					if constexpr (typeid(typename std::remove_reference_t<decltype(p)>::value_type::body_type) == typeid(typename std::remove_reference_t<decltype(response)>::body_type))
+					{
+						response = std::move(p.get());
+					}
+				}
+			}, stream, parser);
 		}
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
-			if(!buf) buf.emplace();
-			if(!parser) parser.emplace();
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
-			response_header = parser->get().base();
+			// if(!buf) buf.emplace();
+			// if(!parser) parser.emplace();
+			// if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
+			// if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
+			// response_header = parser->get().base();
 		}
 
 		pbl auto read_body(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
 		{
-			if(!buf) buf.emplace();
-			if(!parser) parser.emplace();
-			if(!parser->is_done())
-			{
-				parser->get().body().data = buffer;
-				parser->get().body().size = size;
-				if(auto s = std::get_if<tcp_stream>(&stream))
-				{
-					auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
-					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-				}
-				if(auto s = std::get_if<ssl_stream>(&stream))
-				{
-					auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
-					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-				}
-				co_return size - parser->get().body().size;
-			} else co_return std::nullopt;
+			// if(!buf) buf.emplace();
+			// if(!parser) parser.emplace();
+			// if(!parser->is_done())
+			// {
+			// 	parser->get().body().data = buffer;
+			// 	parser->get().body().size = size;
+			// 	if(auto s = std::get_if<tcp_stream>(&stream))
+			// 	{
+			// 		auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
+			// 		if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+			// 	}
+			// 	if(auto s = std::get_if<ssl_stream>(&stream))
+			// 	{
+			// 		auto [err, bytes_readed] = co_await beast::http::async_read(*s, *buf, *parser, asio::as_tuple(io::use_coro));
+			// 		if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+			// 	}
+			// 	co_return size - parser->get().body().size;
+			// } else co_return std::nullopt;
+			co_return 0;
 		}
 
 		pbl void disconnect()
