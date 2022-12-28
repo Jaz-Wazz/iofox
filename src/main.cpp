@@ -1,6 +1,7 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/beast/core/file.hpp>
 #include <boost/beast/core/file_base.hpp>
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/fields.hpp>
@@ -22,7 +23,7 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	// String body.
+	// std::string.
 	{
 		io::http::client client;
 		co_await client.connect("https://adbtc.top");
@@ -30,12 +31,16 @@ auto coro() -> io::coro<void>
 		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
 		co_await client.write(request);
 
-		io::http::response<std::string> response;
-		co_await client.read(response);
-		std::cout << response << '\n';
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
+		std::cout << response_header << '\n';
+
+		http::string_body::value_type str;
+		co_await client.read_body(str);
+		std::cout << str << '\n';
 	}
 
-	// File body.
+	// file.
 	{
 		io::http::client client;
 		co_await client.connect("https://adbtc.top");
@@ -43,11 +48,32 @@ auto coro() -> io::coro<void>
 		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
 		co_await client.write(request);
 
-		http::response<http::file_body> response;
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
+		std::cout << response_header << '\n';
+
+		http::file_body::value_type body;
 		boost::system::error_code e;
-		response.body().open("sas.txt", beast::file_mode::write, e);
-		fmt::print("{}\n", e.message());
-		co_await client.read(response);
+		body.open("sas.txt", beast::file_mode::write, e);
+		co_await client.read_body(body);
+	}
+
+	//file 2.
+	{
+		io::http::client client;
+		co_await client.connect("https://adbtc.top");
+
+		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+		co_await client.write(request);
+
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
+		std::cout << response_header << '\n';
+
+		beast::file body;
+		boost::system::error_code e;
+		body.open("sas.txt", beast::file_mode::write, e);
+		co_await client.read_body(body);
 	}
 }
 

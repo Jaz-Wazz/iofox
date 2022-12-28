@@ -1,4 +1,5 @@
 #pragma once
+#include "iofox.hpp"
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ssl/error.hpp>
@@ -11,6 +12,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/as_tuple.hpp>
 #include <boost/beast/core/basic_stream.hpp>
+#include <boost/beast/core/file.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/file_body.hpp>
@@ -33,6 +35,7 @@
 #include <variant>
 #include <utility>
 #include <winnt.h>
+#include <iostream>
 
 #define asio		boost::asio
 #define beast		boost::beast
@@ -246,11 +249,99 @@ namespace io::http
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
-			// if(!buf) buf.emplace();
-			// if(!parser) parser.emplace();
-			// if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
-			// if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_read_header(*s, *buf, *parser, io::use_coro);
-			// response_header = parser->get().base();
+			// Create buf, if not exists.
+			if(!buf) buf.emplace();
+
+			// Create parser with empty body in pre-allocated variant -> Initialize from moved user response headers.
+			parser.emplace<parser_empty>(std::move(response_header));
+
+			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
+			{
+				// Check if [stream not nullopt] and [parser not nullopt].
+				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
+				{
+					// Perform read header.
+					co_await beast::http::async_read_header(stream, *buf, parser, io::use_coro);
+
+					// Move response headers back to user.
+					response_header = parser.get();
+				}
+			}, stream, parser);
+		}
+
+		prv template <typename T> constexpr void change_parser_body()
+		{
+			std::visit([&](auto && stream, auto && parser)
+			{
+				using parser_type = std::remove_reference_t<decltype(parser)>;
+				using parser_type_new = beast::http::response_parser<T>;
+
+				if constexpr (typeid(parser_type) != typeid(parser_type_new) && typeid(parser_type) != typeid(std::nullopt))
+				{
+					// Extract parser from variant.
+					parser_type_new p {std::move(parser)};
+
+					// Put parser to variant.
+					this->parser.emplace<parser_type_new>(std::move(parser_type(std::move(p))));
+				}
+			}, stream, parser);
+		}
+
+		pbl auto read_body(auto & body) -> io::coro<void>
+		{
+			// Create buf, if not exists.
+			if(!buf) buf.emplace();
+
+			if constexpr (typeid(body) == typeid(std::string))
+			{
+				change_parser_body<beast::http::string_body>();
+				std::get<parser_string>(parser).get().body() = std::move(body);
+			}
+			if constexpr (typeid(body) == typeid(beast::http::file_body::value_type))
+			{
+				change_parser_body<beast::http::file_body>();
+				std::get<parser_file>(parser).get().body() = std::move(body);
+			}
+			if constexpr (typeid(body) == typeid(beast::file))
+			{
+				change_parser_body<beast::http::file_body>();
+				std::get<parser_file>(parser).get().body().file() = std::move(body);
+			}
+
+			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
+			{
+				// Check if [stream not nullopt] and [parser not nullopt].
+				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
+				{
+					// Perform read body.
+					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
+
+					// Deduse body type for used parser.
+					using parser_body_type_value = typename std::remove_reference_t<decltype(parser)>::value_type::body_type::value_type;
+
+					if constexpr (typeid(parser_body_type_value) == typeid(body) && typeid(body) == typeid(beast::http::file_body::value_type))
+					{
+						fmt::print("file.\n");
+						body = std::move(parser.get().body());
+						co_return;
+					}
+
+					if constexpr (typeid(parser_body_type_value) == typeid(beast::http::file_body::value_type) && typeid(body) == typeid(beast::file))
+					{
+						fmt::print("file 2.\n");
+						body = std::move(parser.get().body().file());
+						co_return;
+					}
+
+					// Return body.
+					if constexpr (typeid(parser_body_type_value) == typeid(body))
+					{
+						fmt::print("non-file.\n");
+						body = std::move(parser.get().body());
+						co_return;
+					}
+				}
+			}, stream, parser);
 		}
 
 		pbl auto read_body(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
