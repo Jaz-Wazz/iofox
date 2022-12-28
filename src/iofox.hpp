@@ -212,21 +212,36 @@ namespace io::http
 
 		pbl auto read(auto & response) -> io::coro<void>
 		{
+			// Create buf, if not exists.
 			if(!buf) buf.emplace();
-			parser.emplace<beast::http::response_parser<typename std::remove_reference_t<decltype(response)>::body_type>>(std::move(response));
 
-			co_await std::visit([&](auto && s, auto && p) -> io::coro<void>
+			// Deduse body type from user response.
+			using body_type = typename std::remove_reference_t<decltype(response)>::body_type;
+
+			// Deduse parser type with user body type.
+			using parser_type = beast::http::response_parser<body_type>;
+
+			// Create dedused parser in pre-allocated variant -> Initialize from moved user response.
+			parser.emplace<parser_type>(std::move(response));
+
+			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
 			{
-				if constexpr (typeid(decltype(s)) != typeid(std::nullopt_t) && typeid(decltype(p)) != typeid(std::nullopt_t))
+				// Check if [stream not nullopt] and [parser not nullopt].
+				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
 				{
-					co_await beast::http::async_read(s, *buf, p, io::use_coro);
+					// Deduse body type for used parser.
+					using parser_body_type = typename std::remove_reference_t<decltype(parser)>::value_type::body_type;
 
-					if constexpr (typeid(typename std::remove_reference_t<decltype(p)>::value_type::body_type) == typeid(typename std::remove_reference_t<decltype(response)>::body_type))
-					{
-						response = std::move(p.get());
-					}
+					// Perform read.
+					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
+
+					// Check if [parser body type] == [response body type] -> Move response back to user.
+					if constexpr (typeid(parser_body_type) == typeid(body_type)) response = std::move(parser.get());
 				}
 			}, stream, parser);
+
+			// Destroy parser.
+			parser = std::nullopt;
 		}
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
