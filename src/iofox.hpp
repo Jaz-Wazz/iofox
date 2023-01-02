@@ -252,8 +252,8 @@ namespace io::http
 
 			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
 			{
-				// Check if [stream not nullopt] and [parser not nullopt].
-				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
+				// Check for nullopt.
+				if constexpr (meta::not_nullopt<decltype(stream)> && meta::not_nullopt<decltype(parser)>)
 				{
 					// Deduse body type for used parser.
 					using parser_body_type = typename std::remove_reference_t<decltype(parser)>::value_type::body_type;
@@ -280,8 +280,8 @@ namespace io::http
 
 			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
 			{
-				// Check if [stream not nullopt] and [parser not nullopt].
-				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
+				// Check for nullopt.
+				if constexpr (meta::not_nullopt<decltype(stream)> && meta::not_nullopt<decltype(parser)>)
 				{
 					// Perform read header.
 					co_await beast::http::async_read_header(stream, *buf, parser, io::use_coro);
