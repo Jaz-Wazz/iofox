@@ -173,6 +173,29 @@ namespace io::windows
 	}
 }
 
+namespace io::meta
+{
+	// Concept check type for std::nullopt.
+	template <typename T> concept not_nullopt = typeid(T) != typeid(std::nullopt);
+
+	// Concept check type for string body.
+	template <typename T> concept is_string_body = typeid(T) == typeid(beast::http::string_body);
+
+	// Concept check type for file body.
+	template <typename T> concept is_file_body = typeid(T) == typeid(beast::http::file_body);
+
+	// Concept check type for not sameless.
+	template <typename T, typename X> concept not_same = typeid(T) != typeid(X);
+
+	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
+	template <typename T> class make_body_type_impl;
+	template <> struct make_body_type_impl<std::string>					{ using type = beast::http::string_body;	};
+	template <> struct make_body_type_impl<beast::file>					{ using type = beast::http::file_body;		};
+	template <> struct make_body_type_impl<beast::http::string_body>	{ using type = beast::http::string_body;	};
+	template <> struct make_body_type_impl<beast::http::file_body>		{ using type = beast::http::file_body;		};
+	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
+}
+
 namespace io::http
 {
 	// Basic high-level http/https client.
@@ -269,64 +292,40 @@ namespace io::http
 			}, stream, parser);
 		}
 
-		prv template <typename T> constexpr void change_parser_body()
-		{
-			std::visit([&](auto && stream, auto && parser)
-			{
-				using parser_type = std::remove_reference_t<decltype(parser)>;
-				using parser_type_new = beast::http::response_parser<T>;
-
-				if constexpr (typeid(parser_type) != typeid(parser_type_new) && typeid(parser_type) != typeid(std::nullopt))
-				{
-					// Extract parser from variant.
-					parser_type_new p {std::move(parser)};
-
-					// Put parser to variant.
-					this->parser.emplace<parser_type_new>(std::move(parser_type(std::move(p))));
-				}
-			}, stream, parser);
-		}
-
 		pbl auto read_body(auto & body) -> io::coro<void>
 		{
 			// Create buf, if not exists.
 			if(!buf) buf.emplace();
 
-			if constexpr (typeid(body) == typeid(std::string))
-			{
-				change_parser_body<beast::http::string_body>();
-				std::get<parser_string>(parser).get().body() = std::move(body);
-			}
-			if constexpr (typeid(body) == typeid(beast::file))
-			{
-				change_parser_body<beast::http::file_body>();
-				std::get<parser_file>(parser).get().body().file() = std::move(body);
-			}
-
 			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
 			{
-				// Check if [stream not nullopt] and [parser not nullopt].
-				if constexpr (typeid(decltype(stream)) != typeid(std::nullopt_t) && typeid(decltype(parser)) != typeid(std::nullopt_t))
+				// Deduction types.
+				using stream_type = std::remove_reference_t<decltype(stream)>;
+				using parser_type = std::remove_reference_t<decltype(parser)>;
+
+				// Check for nullopt.
+				if constexpr (meta::not_nullopt<stream_type> && meta::not_nullopt<parser_type>)
 				{
-					// Perform read body.
-					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
+					// Deduction types.
+					using user_body_type = meta::make_body_type<decltype(body)>;
+					using parser_body_type = typename parser_type::value_type::body_type;
 
-					// Deduse body type for used parser.
-					using parser_body_type_value = typename std::remove_reference_t<decltype(parser)>::value_type::body_type::value_type;
-
-					if constexpr (typeid(parser_body_type_value) == typeid(beast::http::file_body::value_type) && typeid(body) == typeid(beast::file))
+					if constexpr (meta::not_same<parser_body_type, user_body_type>)
 					{
-						fmt::print("file 2.\n");
-						body = std::move(parser.get().body().file());
-						co_return;
-					}
+						// Get local parser copy with mutated body-type.
+						beast::http::response_parser<user_body_type> p {std::move(parser)};
 
-					// Return body.
-					if constexpr (typeid(parser_body_type_value) == typeid(body))
-					{
-						fmt::print("non-file.\n");
-						body = std::move(parser.get().body());
-						co_return;
+						// Get parser body object reference.
+						auto & parser_body = [&]() -> auto &
+						{
+							if constexpr(meta::is_string_body<user_body_type>)	return p.get().body();
+							if constexpr(meta::is_file_body<user_body_type>)	return p.get().body().file();
+						}();
+
+						// Set user body -> Read -> Return user result.
+						parser_body = std::move(body);
+						co_await beast::http::async_read(stream, *buf, p, io::use_coro);
+						body = std::move(parser_body);
 					}
 				}
 			}, stream, parser);
