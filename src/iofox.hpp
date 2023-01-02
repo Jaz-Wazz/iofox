@@ -297,11 +297,6 @@ namespace io::http
 				change_parser_body<beast::http::string_body>();
 				std::get<parser_string>(parser).get().body() = std::move(body);
 			}
-			if constexpr (typeid(body) == typeid(beast::http::file_body::value_type))
-			{
-				change_parser_body<beast::http::file_body>();
-				std::get<parser_file>(parser).get().body() = std::move(body);
-			}
 			if constexpr (typeid(body) == typeid(beast::file))
 			{
 				change_parser_body<beast::http::file_body>();
@@ -318,13 +313,6 @@ namespace io::http
 
 					// Deduse body type for used parser.
 					using parser_body_type_value = typename std::remove_reference_t<decltype(parser)>::value_type::body_type::value_type;
-
-					if constexpr (typeid(parser_body_type_value) == typeid(body) && typeid(body) == typeid(beast::http::file_body::value_type))
-					{
-						fmt::print("file.\n");
-						body = std::move(parser.get().body());
-						co_return;
-					}
 
 					if constexpr (typeid(parser_body_type_value) == typeid(beast::http::file_body::value_type) && typeid(body) == typeid(beast::file))
 					{

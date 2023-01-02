@@ -23,7 +23,7 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	// std::string.
+	// Read "std::string".
 	{
 		io::http::client client;
 		co_await client.connect("https://adbtc.top");
@@ -35,30 +35,12 @@ auto coro() -> io::coro<void>
 		co_await client.read_header(response_header);
 		std::cout << response_header << '\n';
 
-		http::string_body::value_type str;
+		std::string str;
 		co_await client.read_body(str);
 		std::cout << str << '\n';
 	}
 
-	// file.
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
-
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
-
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-		std::cout << response_header << '\n';
-
-		http::file_body::value_type body;
-		boost::system::error_code e;
-		body.open("sas.txt", beast::file_mode::write, e);
-		co_await client.read_body(body);
-	}
-
-	//file 2.
+	// Read "beast::file".
 	{
 		io::http::client client;
 		co_await client.connect("https://adbtc.top");
@@ -74,6 +56,11 @@ auto coro() -> io::coro<void>
 		boost::system::error_code e;
 		body.open("sas.txt", beast::file_mode::write, e);
 		co_await client.read_body(body);
+	}
+
+	// Read "std::vector<>".
+	{
+		// ...
 	}
 }
 
