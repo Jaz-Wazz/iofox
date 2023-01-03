@@ -308,13 +308,10 @@ namespace io::http
 
 		pbl auto read_body_chunk(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
 		{
-			co_return co_await std::visit([=](auto && stream, auto && parser) -> io::coro<std::optional<std::size_t>>
+			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
+			co_return co_await std::visit(meta::overloaded
 			{
-				// Deduction types.
-				using stream_type = std::remove_reference_t<decltype(stream)>;
-				using parser_type = std::remove_reference_t<decltype(parser)>;
-
-				if constexpr (meta::not_nullopt<stream_type> && typeid(parser_type) == typeid(beast::http::response_parser<beast::http::buffer_body>))
+				[&](meta::not_nullopt auto && stream, parser_buffer & parser) -> io::coro<std::optional<std::size_t>>
 				{
 					if(!parser.is_done())
 					{
@@ -324,7 +321,8 @@ namespace io::http
 						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 						co_return size - parser.get().body().size;
 					} else co_return std::nullopt;
-				} else co_return std::nullopt;
+				},
+				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
 			}, stream, parser);
 		}
 

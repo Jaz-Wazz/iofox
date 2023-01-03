@@ -24,19 +24,19 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	io::http::client client;
-	co_await client.connect("https://adbtc.top");
+	// io::http::client client;
+	// co_await client.connect("https://adbtc.top");
 
-	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-	co_await client.write(request);
+	// io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	// co_await client.write(request);
 
-	io::http::response_header response_header;
-	co_await client.read_header(response_header);
-	std::cout << response_header << '\n';
+	// io::http::response_header response_header;
+	// co_await client.read_header(response_header);
+	// std::cout << response_header << '\n';
 
-	std::string body;
-	co_await client.read_body(body);
-	std::cout << body << '\n';
+	// std::string body;
+	// co_await client.read_body(body);
+	// std::cout << body << '\n';
 
 	// Read "std::string".
 	// {
@@ -80,21 +80,21 @@ auto coro() -> io::coro<void>
 
 	// // Read chunky.
 	// {
-	// 	io::http::client client;
-	// 	co_await client.connect("https://adbtc.top");
+		io::http::client client;
+		co_await client.connect("https://adbtc.top");
 
-	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-	// 	co_await client.write(request);
+		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+		co_await client.write(request);
 
-	// 	io::http::response_header response_header;
-	// 	co_await client.read_header(response_header);
-	// 	std::cout << response_header << '\n';
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
+		std::cout << response_header << '\n';
 
-	// 	char buf[8];
-	// 	while(auto bytes_readed = co_await client.read_body_chunk(buf, 8))
-	// 	{
-	// 		fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
-	// 	}
+		char buf[8];
+		while(auto bytes_readed = co_await client.read_body_chunk(buf, 8))
+		{
+			fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
+		}
 	// }
 }
 
