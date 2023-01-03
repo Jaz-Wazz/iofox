@@ -194,6 +194,9 @@ namespace io::meta
 	template <> struct make_body_type_impl<beast::http::string_body>	{ using type = beast::http::string_body;	};
 	template <> struct make_body_type_impl<beast::http::file_body>		{ using type = beast::http::file_body;		};
 	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
+
+	template <class... Ts> struct overloaded: Ts... { using Ts::operator()...; };
+	template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 }
 
 namespace io::http
@@ -272,23 +275,19 @@ namespace io::http
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
-			// Create buf, if not exists.
+			// First initialize buffer if not exist and parser with user headers object.
 			if(!buf) buf.emplace();
-
-			// Create parser with empty body in pre-allocated variant -> Initialize from moved user response headers.
 			parser.emplace<parser_buffer>(std::move(response_header));
 
-			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
+			// Read header if not nullopt -> Move response headers back.
+			co_await std::visit(meta::overloaded
 			{
-				// Check for nullopt.
-				if constexpr (meta::not_nullopt<decltype(stream)> && meta::not_nullopt<decltype(parser)>)
+				[&](meta::not_nullopt auto && stream, parser_buffer & parser) -> io::coro<void>
 				{
-					// Perform read header.
 					co_await beast::http::async_read_header(stream, *buf, parser, io::use_coro);
-
-					// Move response headers back to user.
 					response_header = parser.get();
-				}
+				},
+				[](auto && ...) -> io::coro<void> { co_return; },
 			}, stream, parser);
 		}
 
