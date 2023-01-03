@@ -24,64 +24,74 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
+	io::http::client client;
+	co_await client.connect("https://adbtc.top");
+
+	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	co_await client.write(request);
+
+	io::http::response<std::string> response;
+	co_await client.read(response);
+	std::cout << response << '\n';
+
 	// Read "std::string".
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+	// {
+	// 	io::http::client client;
+	// 	co_await client.connect("https://adbtc.top");
 
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
+	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	// 	co_await client.write(request);
 
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-		std::cout << response_header << '\n';
+	// 	io::http::response_header response_header;
+	// 	co_await client.read_header(response_header);
+	// 	std::cout << response_header << '\n';
 
-		std::string str;
-		co_await client.read_body(str);
-		std::cout << str << '\n';
-	}
+	// 	std::string str;
+	// 	co_await client.read_body(str);
+	// 	std::cout << str << '\n';
+	// }
 
-	// Read "beast::file".
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+	// // Read "beast::file".
+	// {
+	// 	io::http::client client;
+	// 	co_await client.connect("https://adbtc.top");
 
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
+	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	// 	co_await client.write(request);
 
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-		std::cout << response_header << '\n';
+	// 	io::http::response_header response_header;
+	// 	co_await client.read_header(response_header);
+	// 	std::cout << response_header << '\n';
 
-		beast::file body;
-		boost::system::error_code e;
-		body.open("sas.txt", beast::file_mode::write, e);
-		co_await client.read_body(body);
-	}
+	// 	beast::file body;
+	// 	boost::system::error_code e;
+	// 	body.open("sas.txt", beast::file_mode::write, e);
+	// 	co_await client.read_body(body);
+	// }
 
-	// Read "std::vector<>".
-	{
-		// ...
-	}
+	// // Read "std::vector<>".
+	// {
+	// 	// ...
+	// }
 
-	// Read chunky.
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+	// // Read chunky.
+	// {
+	// 	io::http::client client;
+	// 	co_await client.connect("https://adbtc.top");
 
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
+	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	// 	co_await client.write(request);
 
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-		std::cout << response_header << '\n';
+	// 	io::http::response_header response_header;
+	// 	co_await client.read_header(response_header);
+	// 	std::cout << response_header << '\n';
 
-		char buf[8];
-		while(auto bytes_readed = co_await client.read_body_chunk(buf, 8))
-		{
-			fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
-		}
-	}
+	// 	char buf[8];
+	// 	while(auto bytes_readed = co_await client.read_body_chunk(buf, 8))
+	// 	{
+	// 		fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
+	// 	}
+	// }
 }
 
 int main() try

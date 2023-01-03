@@ -241,36 +241,23 @@ namespace io::http
 
 		pbl auto read(auto & response) -> io::coro<void>
 		{
-			// Create buf, if not exists.
+			// First initialize buffer if not exist.
 			if(!buf) buf.emplace();
 
-			// Deduse body type from user response.
+			// Deduse body type from response -> Create parser with dedused body type and initialize from moved response.
 			using body_type = typename std::remove_reference_t<decltype(response)>::body_type;
+			parser.emplace<beast::http::response_parser<body_type>>(std::move(response));
 
-			// Deduse parser type with user body type.
-			using parser_type = beast::http::response_parser<body_type>;
-
-			// Create dedused parser in pre-allocated variant -> Initialize from moved user response.
-			parser.emplace<parser_type>(std::move(response));
-
-			co_await std::visit([&](auto && stream, auto && parser) -> io::coro<void>
+			// Perform read -> Move response back.
+			co_await std::visit(meta::overloaded
 			{
-				// Check for nullopt.
-				if constexpr (meta::not_nullopt<decltype(stream)> && meta::not_nullopt<decltype(parser)>)
+				[&](meta::not_nullopt auto && stream, beast::http::response_parser<body_type> & parser) -> io::coro<void>
 				{
-					// Deduse body type for used parser.
-					using parser_body_type = typename std::remove_reference_t<decltype(parser)>::value_type::body_type;
-
-					// Perform read.
 					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
-
-					// Check if [parser body type] == [response body type] -> Move response back to user.
-					if constexpr (typeid(parser_body_type) == typeid(body_type)) response = std::move(parser.get());
-				}
+					response = std::move(parser.get());
+				},
+				[](auto && ...) -> io::coro<void> { co_return; },
 			}, stream, parser);
-
-			// Destroy parser.
-			parser = std::nullopt;
 		}
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
