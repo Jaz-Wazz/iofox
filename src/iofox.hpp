@@ -328,16 +328,12 @@ namespace io::http
 
 		pbl void disconnect()
 		{
-			if(auto s = std::get_if<tcp_stream>(&stream))
+			std::visit(meta::overloaded
 			{
-				s->shutdown(s->shutdown_both);
-				s->close();
-			}
-			if(auto s = std::get_if<ssl_stream>(&stream))
-			{
-				s->next_layer().shutdown(tcp_stream::shutdown_both);
-				s->next_layer().close();
-			}
+				[](tcp_stream & stream) { stream.shutdown(stream.shutdown_both); stream.close(); },
+				[](ssl_stream & stream) { stream.next_layer().shutdown(tcp_stream::shutdown_both); stream.next_layer().close(); },
+				[](auto && ...) {},
+			}, stream);
 		}
 	};
 

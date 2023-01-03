@@ -95,6 +95,8 @@ auto coro() -> io::coro<void>
 		{
 			fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
 		}
+
+		client.disconnect();
 	// }
 }
 
