@@ -26,105 +26,84 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+	// io::http::client client;
+	// co_await client.connect("https://adbtc.top");
 
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
+	// io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+	// co_await client.write(request);
 
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
+	// io::http::response<std::vector<char>> response;
+	// co_await client.read(response);
+	// std::cout << response << '\n';
+	co_return;
+}
 
-		std::vector<char> body;
-		co_await client.read_body(body);
-		for(auto c : body) std::cout << c;
-	}
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+template <typename T> concept is_init_list = typeid(T) == typeid(std::initializer_list<int>);
 
-		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
-
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-
-		io::file body {"sas.txt"};
-		co_await client.read_body(body);
-	}
-
-
-	// std::cout << body << '\n';
-
-	// Read "std::string".
-	// {
-	// 	io::http::client client;
-	// 	co_await client.connect("https://adbtc.top");
-
-	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-	// 	co_await client.write(request);
-
-	// 	io::http::response_header response_header;
-	// 	co_await client.read_header(response_header);
-	// 	std::cout << response_header << '\n';
-
-	// 	std::string str;
-	// 	co_await client.read_body(str);
-	// 	std::cout << str << '\n';
-	// }
-
-	// // Read "beast::file".
-	// {
-	// 	io::http::client client;
-	// 	co_await client.connect("https://adbtc.top");
-
-	// 	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-	// 	co_await client.write(request);
-
-	// 	io::http::response_header response_header;
-	// 	co_await client.read_header(response_header);
-	// 	std::cout << response_header << '\n';
-
-	// 	beast::file body;
-	// 	boost::system::error_code e;
-	// 	body.open("sas.txt", beast::file_mode::write, e);
-	// 	co_await client.read_body(body);
-	// }
-
-	// // Read "std::vector<>".
-	// {
-	// 	// ...
-	// }
-
-	// // Read chunky.
-	// {
-		// io::http::client client;
-		// co_await client.connect("https://adbtc.top");
-
-		// io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-		// co_await client.write(request);
-
-		// io::http::response_header response_header;
-		// co_await client.read_header(response_header);
-		// std::cout << response_header << '\n';
-
-		// char buf[8];
-		// while(auto bytes_readed = co_await client.read_body_chunk(buf, 8))
-		// {
-		// 	fmt::print("[reader] - {} bytes, value '{}'.\n", *bytes_readed, std::string(buf, *bytes_readed));
-		// }
-
-		// client.disconnect();
-	// }
+void foo(auto && x)
+{
+	std::vector<int> v = x;
 }
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	// empty.
+	{
+		io::http::response response {201, {{"sas", "sis"}, {"key", "val"}}};
+		std::cout << response << '\n';
+	}
+
+	// string.
+	{
+		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, "string"};
+		std::cout << response << '\n';
+	}
+	{
+		std::string s = "copy string";
+		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, s};
+		std::cout << response << '\n';
+	}
+	{
+		std::string s = "mooved string";
+		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(s)};
+		std::cout << response << '\n';
+	}
+
+	// vector.
+	{
+		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, {'b', 'o', 'd', 'y'}};
+		std::cout << response << '\n';
+	}
+	{
+		std::vector<char> body = {'b', 'o', 'd', 'y'};
+		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, body};
+		std::cout << response << '\n';
+	}
+	{
+		std::vector<char> body = {'b', 'o', 'd', 'y'};
+		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(body)};
+		std::cout << response << '\n';
+	}
+
+	// file.
+	{
+		io::http::response<io::file> response {201, {{"sas", "sis"}, {"key", "val"}}, {"sas.txt"}};
+	}
+	{
+		io::file file {"sas_2.txt"};
+		io::http::response<io::file> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
+	}
+	{
+		beast::file file;
+		beast::error_code e;
+		file.open("sas_3.txt", beast::file_mode::write, e);
+		io::http::response<beast::file> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
+	}
+
+	// io::windows::set_asio_locale(io::windows::lang::english);
+	// asio::io_context ctx;
+	// asio::co_spawn(ctx, coro(), io::rethrowed);
+	// return ctx.run();
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
 catch(...) { fmt::print("Exception: 'unknown'.\n"); }

@@ -25,6 +25,7 @@
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <concepts>
 #include <initializer_list>
 #include <system_error>
 #include <type_traits>
@@ -215,6 +216,7 @@ namespace io::meta
 
 	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
 	template <typename>				struct make_body_type_impl;
+	template <>						struct make_body_type_impl<void>		{ using type = beast::http::empty_body;								};
 	template <>						struct make_body_type_impl<std::string>	{ using type = beast::http::string_body;							};
 	template <vector_one_byte T>	struct make_body_type_impl<T>			{ using type = beast::http::vector_body<typename T::value_type>;	};
 	template <any_file_type T>		struct make_body_type_impl<T>			{ using type = beast::http::file_body;								};
@@ -409,28 +411,9 @@ namespace io::http
 	};
 
 	// Basic response object.
-	template <typename T = void> class response;
-
-	// Basic response object without body.
-	template <> class response<void>: public beast::http::response<beast::http::empty_body>
+	template <typename T = void> class response: public beast::http::response<meta::make_body_type<T>>
 	{
-		prv using base = beast::http::response<beast::http::empty_body>;
-		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
-
-		pbl using base::operator=;
-		pbl using base::operator[];
-
-		pbl response(unsigned int result = 200, header_list headers = {})
-		{
-			this->result(result);
-			for(auto && [header, value] : headers) this->insert(header, value);
-		}
-	};
-
-	// Basic response object with string body.
-	template <> class response<std::string>: public beast::http::response<beast::http::string_body>
-	{
-		prv using base = beast::http::response<beast::http::string_body>;
+		prv using base = beast::http::response<meta::make_body_type<T>>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
 
 		pbl using base::operator=;
@@ -442,12 +425,29 @@ namespace io::http
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
 
-		pbl response(unsigned int result, header_list headers, const std::string & body)
-		{
-			this->result(result);
-			for(auto && [header, value] : headers) this->insert(header, value);
-			this->body() = body;
-		}
+		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
+		response(unsigned int result, header_list headers, const std::string & body): response(result, std::move(headers))
+		{ this->body() = body; }
+
+		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
+		response(unsigned int result, header_list headers, std::string && body): response(result, std::move(headers))
+		{ this->body() = std::move(body); }
+
+		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
+		response(unsigned int result, header_list headers, const std::vector<typename X::value_type> & body): response(result, std::move(headers))
+		{ this->body() = body; }
+
+		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
+		response(unsigned int result, header_list headers, std::vector<typename X::value_type> && body): response(result, std::move(headers))
+		{ this->body() = std::move(body); }
+
+		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, io::file>, int>::type = 0>
+		response(unsigned int result, header_list headers, io::file && body): response(result, std::move(headers))
+		{ this->body().file() = std::move(body); }
+
+		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, beast::file>, int>::type = 0>
+		response(unsigned int result, header_list headers, beast::file && body): response(result, std::move(headers))
+		{ this->body().file() = std::move(body); }
 	};
 
 	// Basic request header object.
