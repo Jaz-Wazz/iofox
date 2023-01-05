@@ -209,9 +209,7 @@ namespace io::meta
 	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
 	template <typename T> class make_body_type_impl;
 	template <> struct make_body_type_impl<std::string>					{ using type = beast::http::string_body;	};
-	template <> struct make_body_type_impl<beast::http::string_body>	{ using type = beast::http::string_body;	};
 	template <> struct make_body_type_impl<beast::file>					{ using type = beast::http::file_body;		};
-	template <> struct make_body_type_impl<beast::http::file_body>		{ using type = beast::http::file_body;		};
 	template <> struct make_body_type_impl<io::file>					{ using type = beast::http::file_body;		};
 	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
 

@@ -1,6 +1,7 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file.hpp>
 #include <boost/beast/core/file_base.hpp>
 #include <boost/beast/http/empty_body.hpp>
@@ -24,18 +25,37 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	io::http::client client;
-	co_await client.connect("https://adbtc.top");
+	{
+		io::http::client client;
+		co_await client.connect("https://adbtc.top");
 
-	io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
-	co_await client.write(request);
+		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+		co_await client.write(request);
 
-	io::http::response_header response_header;
-	co_await client.read_header(response_header);
-	std::cout << response_header << '\n';
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
 
-	io::file file {"sas.txt"};
-	co_await client.read_body(file);
+		io::file file {"sas.txt"};
+		co_await client.read_body(file);
+	}
+	{
+		io::http::client client;
+		co_await client.connect("https://adbtc.top");
+
+		io::http::request<> request {"GET", "/", {{"host", "adbtc.top"}}};
+		co_await client.write(request);
+
+		io::http::response_header response_header;
+		co_await client.read_header(response_header);
+
+		beast::file file;
+		beast::error_code e;
+		file.open("sas_2.txt", beast::file_mode::write, e);
+		co_await client.read_body(file);
+	}
+
+
+
 	// std::cout << body << '\n';
 
 	// Read "std::string".
