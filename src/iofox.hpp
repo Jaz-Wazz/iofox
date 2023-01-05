@@ -12,6 +12,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/as_tuple.hpp>
 #include <boost/beast/core/basic_stream.hpp>
+#include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/empty_body.hpp>
@@ -127,6 +128,24 @@ namespace io
 			return (protocol.empty() ? "" : protocol + "://") + host + serialize_location();
 		}
 	};
+
+	// Basic file object.
+	class file: public beast::file
+	{
+		pbl file() = default;
+
+		pbl void operator=(beast::file && other)
+		{
+			beast::file::operator=(std::move(other));
+		}
+
+		pbl file(const char * path, beast::file_mode mode = beast::file_mode::write)
+		{
+			beast::error_code e;
+			open(path, mode, e);
+			if(e) throw std::system_error(e);
+		}
+	};
 }
 
 namespace io::dns
@@ -190,9 +209,10 @@ namespace io::meta
 	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
 	template <typename T> class make_body_type_impl;
 	template <> struct make_body_type_impl<std::string>					{ using type = beast::http::string_body;	};
-	template <> struct make_body_type_impl<beast::file>					{ using type = beast::http::file_body;		};
 	template <> struct make_body_type_impl<beast::http::string_body>	{ using type = beast::http::string_body;	};
+	template <> struct make_body_type_impl<beast::file>					{ using type = beast::http::file_body;		};
 	template <> struct make_body_type_impl<beast::http::file_body>		{ using type = beast::http::file_body;		};
+	template <> struct make_body_type_impl<io::file>					{ using type = beast::http::file_body;		};
 	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
 
 	template <class... Ts> struct overloaded: Ts... { using Ts::operator()...; };
