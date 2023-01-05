@@ -38,66 +38,59 @@ auto coro() -> io::coro<void>
 	co_return;
 }
 
-template <typename T> concept is_init_list = typeid(T) == typeid(std::initializer_list<int>);
-
-void foo(auto && x)
-{
-	std::vector<int> v = x;
-}
-
 int main() try
 {
 	// empty.
 	{
-		io::http::response response {201, {{"sas", "sis"}, {"key", "val"}}};
-		std::cout << response << '\n';
+		io::http::request request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}};
+		std::cout << request << '\n';
 	}
 
 	// string.
 	{
-		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, "string"};
-		std::cout << response << '\n';
+		io::http::request<std::string> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, "string"};
+		std::cout << request << '\n';
 	}
 	{
 		std::string s = "copy string";
-		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, s};
-		std::cout << response << '\n';
+		io::http::request<std::string> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, s};
+		std::cout << request << '\n';
 	}
 	{
 		std::string s = "mooved string";
-		io::http::response<std::string> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(s)};
-		std::cout << response << '\n';
+		io::http::request<std::string> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, std::move(s)};
+		std::cout << request << '\n';
 	}
 
 	// vector.
 	{
-		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, {'b', 'o', 'd', 'y'}};
-		std::cout << response << '\n';
+		io::http::request<std::vector<char>> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, {'b', 'o', 'd', 'y'}};
+		std::cout << request << '\n';
 	}
 	{
 		std::vector<char> body = {'b', 'o', 'd', 'y'};
-		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, body};
-		std::cout << response << '\n';
+		io::http::request<std::vector<char>> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, body};
+		std::cout << request << '\n';
 	}
 	{
 		std::vector<char> body = {'b', 'o', 'd', 'y'};
-		io::http::response<std::vector<char>> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(body)};
-		std::cout << response << '\n';
+		io::http::request<std::vector<char>> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, std::move(body)};
+		std::cout << request << '\n';
 	}
 
 	// file.
 	{
-		io::http::response<io::file> response {201, {{"sas", "sis"}, {"key", "val"}}, {"sas.txt"}};
+		io::http::request<io::file> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, {"sas.txt"}};
 	}
 	{
 		io::file file {"sas_2.txt"};
-		io::http::response<io::file> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
+		io::http::request<io::file> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
 	}
 	{
 		beast::file file;
 		beast::error_code e;
 		file.open("sas_3.txt", beast::file_mode::write, e);
-		io::http::response<beast::file> response {201, {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
+		io::http::request<beast::file> request {"POST", "/", {{"sas", "sis"}, {"key", "val"}}, std::move(file)};
 	}
 
 	// io::windows::set_asio_locale(io::windows::lang::english);
