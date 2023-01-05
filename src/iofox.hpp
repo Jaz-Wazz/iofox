@@ -21,6 +21,7 @@
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
@@ -206,13 +207,20 @@ namespace io::meta
 	// Concept check type for not sameless.
 	template <typename T, typename... X> concept not_same = (typeid(T) != typeid(X) && ...);
 
+	// Concept check type is same std::vector<T> and sizeof(T) == 1 byte.
+	template <typename T> concept vector_one_byte = typeid(std::vector<typename T::value_type>) == typeid(T) && sizeof(T::value_type) == 1;
+
+	// Concept check type is io::file or beast::file.
+	template <typename T> concept any_file_type = typeid(T) == typeid(io::file) || typeid(T) == typeid(beast::file);
+
 	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
-	template <typename T> class make_body_type_impl;
-	template <> struct make_body_type_impl<std::string>					{ using type = beast::http::string_body;	};
-	template <> struct make_body_type_impl<beast::file>					{ using type = beast::http::file_body;		};
-	template <> struct make_body_type_impl<io::file>					{ using type = beast::http::file_body;		};
+	template <typename>				struct make_body_type_impl;
+	template <>						struct make_body_type_impl<std::string>	{ using type = beast::http::string_body;							};
+	template <vector_one_byte T>	struct make_body_type_impl<T>			{ using type = beast::http::vector_body<typename T::value_type>;	};
+	template <any_file_type T>		struct make_body_type_impl<T>			{ using type = beast::http::file_body;								};
 	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
 
+	// Fast overloaded object creator for "std::variant" unpack.
 	template <class... Ts> struct overloaded: Ts... { using Ts::operator()...; };
 	template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 }

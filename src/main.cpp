@@ -17,6 +17,7 @@
 #include <util.hpp>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace asio = boost::asio;			// NOLINT.
 namespace beast = boost::beast;			// NOLINT.
@@ -35,8 +36,9 @@ auto coro() -> io::coro<void>
 		io::http::response_header response_header;
 		co_await client.read_header(response_header);
 
-		io::file file {"sas.txt"};
-		co_await client.read_body(file);
+		std::vector<char> body;
+		co_await client.read_body(body);
+		for(auto c : body) std::cout << c;
 	}
 	{
 		io::http::client client;
@@ -48,12 +50,9 @@ auto coro() -> io::coro<void>
 		io::http::response_header response_header;
 		co_await client.read_header(response_header);
 
-		beast::file file;
-		beast::error_code e;
-		file.open("sas_2.txt", beast::file_mode::write, e);
-		co_await client.read_body(file);
+		io::file body {"sas.txt"};
+		co_await client.read_body(body);
 	}
-
 
 
 	// std::cout << body << '\n';
