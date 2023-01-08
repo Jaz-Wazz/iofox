@@ -20,6 +20,7 @@
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/read.hpp>
+#include <boost/beast/http/serializer.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/vector_body.hpp>
 #include <boost/beast/http/write.hpp>
@@ -240,8 +241,9 @@ namespace io::http
 		using buffer_body	= beast::http::buffer_body;
 		using file_body		= beast::http::file_body;
 
-		template <typename T> using vector_body		= beast::http::vector_body<T>;
-		template <typename T> using response_parser	= beast::http::response_parser<T>;
+		template <typename T> using vector_body			= beast::http::vector_body<T>;
+		template <typename T> using response_parser		= beast::http::response_parser<T>;
+		template <typename T> using request_serializer	= beast::http::request_serializer<T>;
 
 		prv using any_stream = std::variant
 		<
@@ -263,8 +265,22 @@ namespace io::http
 			response_parser<vector_body<std::uint8_t>>
 		>;
 
+		prv using any_serializer = std::variant
+		<
+			std::nullopt_t,
+			request_serializer<empty_body>,
+			request_serializer<string_body>,
+			request_serializer<buffer_body>,
+			request_serializer<file_body>,
+			request_serializer<vector_body<char>>,
+			request_serializer<vector_body<std::byte>>,
+			request_serializer<vector_body<std::int8_t>>,
+			request_serializer<vector_body<std::uint8_t>>
+		>;
+
 		prv any_stream stream = std::nullopt;
 		prv any_parser parser = std::nullopt;
+		prv any_serializer serializer = std::nullopt;
 		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
@@ -289,8 +305,19 @@ namespace io::http
 
 		pbl auto write(auto & request) -> io::coro<void>
 		{
-			if(auto s = std::get_if<tcp_stream>(&stream)) co_await beast::http::async_write(*s, request, io::use_coro);
-			if(auto s = std::get_if<ssl_stream>(&stream)) co_await beast::http::async_write(*s, request, io::use_coro);
+			// Deduse body type from request -> Create serializer with dedused body type and initialize from request ref.
+			using body_type = typename std::remove_reference_t<decltype(request)>::body_type;
+			serializer.emplace<request_serializer<body_type>>(request);
+
+			// Perform write.
+			co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream, request_serializer<body_type> & parser) -> io::coro<void>
+				{
+					co_await beast::http::async_write(stream, parser, io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; },
+			}, stream, serializer);
 		}
 
 		pbl auto read(auto & response) -> io::coro<void>

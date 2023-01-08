@@ -26,31 +26,15 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
+	io::http::client client;
+	co_await client.connect("https://adbtc.top");
 
-		io::http::request request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
+	io::http::request request {"GET", "/", {{"host", "adbtc.top"}}};
+	co_await client.write(request);
 
-		io::http::response<std::vector<char>> response;
-		co_await client.read(response);
-		for(auto c : response.body()) std::cout << c;
-	}
-	{
-		io::http::client client;
-		co_await client.connect("https://adbtc.top");
-
-		io::http::request request {"GET", "/", {{"host", "adbtc.top"}}};
-		co_await client.write(request);
-
-		io::http::response_header response_header;
-		co_await client.read_header(response_header);
-
-		std::vector<char> body;
-		co_await client.read_body(body);
-		for(auto c : body) std::cout << c;
-	}
+	io::http::response<std::string> response;
+	co_await client.read(response);
+	std::cout << response << '\n';
 }
 
 int main() try
