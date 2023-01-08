@@ -269,20 +269,25 @@ namespace io::http
 
 		pbl auto connect(io::url url) -> io::coro<void>
 		{
-			if(url.protocol == "http")
+			if(url.protocol == "http")	stream = tcp_stream(co_await this_coro::executor);
+			if(url.protocol == "https")	stream = ssl_stream(co_await this_coro::executor, co_await io::ssl::context());
+
+			co_await std::visit(meta::overloaded
 			{
-				stream = tcp_stream(co_await this_coro::executor);
-				auto ips = co_await io::dns::resolve("http", url.host);
-				co_await asio::async_connect(std::get<tcp_stream>(stream), ips, io::use_coro);
-			}
-			if(url.protocol == "https")
-			{
-				stream = ssl_stream(co_await this_coro::executor, co_await io::ssl::context());
-				auto ips = co_await io::dns::resolve("https", url.host);
-				co_await asio::async_connect(std::get<ssl_stream>(stream).next_layer(), ips, io::use_coro);
-				io::ssl::set_tls_extension_hostname(std::get<ssl_stream>(stream), url.host);
-				co_await std::get<ssl_stream>(stream).async_handshake(ssl_stream::client, io::use_coro);
-			}
+				[&](tcp_stream & stream) -> io::coro<void>
+				{
+					auto ips = co_await io::dns::resolve("http", url.host);
+					co_await asio::async_connect(stream, ips, io::use_coro);
+				},
+				[&](ssl_stream & stream)  -> io::coro<void>
+				{
+					auto ips = co_await io::dns::resolve("https", url.host);
+					co_await asio::async_connect(stream.next_layer(), ips, io::use_coro);
+					io::ssl::set_tls_extension_hostname(stream, url.host);
+					co_await stream.async_handshake(stream.client, io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; },
+			}, stream);
 		}
 
 		pbl auto write(auto & request) -> io::coro<void>
