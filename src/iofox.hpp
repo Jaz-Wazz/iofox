@@ -26,6 +26,7 @@
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
 #include <concepts>
+#include <cstdint>
 #include <initializer_list>
 #include <system_error>
 #include <type_traits>
@@ -232,15 +233,38 @@ namespace io::http
 	// Basic high-level http/https client.
 	class client
 	{
-		prv using tcp_stream = asio::ip::tcp::socket;
-		prv using ssl_stream = asio::ssl::stream<asio::ip::tcp::socket>;
-		prv using parser_buffer = beast::http::response_parser<beast::http::buffer_body>;
-		prv using parser_string = beast::http::response_parser<beast::http::string_body>;
-		prv using parser_empty = beast::http::response_parser<beast::http::empty_body>;
-		prv using parser_file = beast::http::response_parser<beast::http::file_body>;
+		using tcp_stream	= asio::ip::tcp::socket;
+		using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
+		using empty_body	= beast::http::empty_body;
+		using string_body	= beast::http::string_body;
+		using buffer_body	= beast::http::buffer_body;
+		using file_body		= beast::http::file_body;
 
-		prv std::variant<tcp_stream, ssl_stream, std::nullopt_t> stream = std::nullopt;
-		prv std::variant<parser_buffer, parser_string, parser_empty, parser_file, std::nullopt_t> parser = std::nullopt;
+		template <typename T> using vector_body		= beast::http::vector_body<T>;
+		template <typename T> using response_parser	= beast::http::response_parser<T>;
+
+		prv using any_stream = std::variant
+		<
+			std::nullopt_t,
+			tcp_stream,
+			ssl_stream
+		>;
+
+		prv using any_parser = std::variant
+		<
+			std::nullopt_t,
+			response_parser<empty_body>,
+			response_parser<string_body>,
+			response_parser<buffer_body>,
+			response_parser<file_body>,
+			response_parser<vector_body<char>>,
+			response_parser<vector_body<std::byte>>,
+			response_parser<vector_body<std::int8_t>>,
+			response_parser<vector_body<std::uint8_t>>
+		>;
+
+		prv any_stream stream = std::nullopt;
+		prv any_parser parser = std::nullopt;
 		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
@@ -274,12 +298,12 @@ namespace io::http
 
 			// Deduse body type from response -> Create parser with dedused body type and initialize from moved response.
 			using body_type = typename std::remove_reference_t<decltype(response)>::body_type;
-			parser.emplace<beast::http::response_parser<body_type>>(std::move(response));
+			parser.emplace<response_parser<body_type>>(std::move(response));
 
 			// Perform read -> Move response back.
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream, beast::http::response_parser<body_type> & parser) -> io::coro<void>
+				[&](meta::not_nullopt auto && stream, response_parser<body_type> & parser) -> io::coro<void>
 				{
 					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
 					response = std::move(parser.get());
@@ -292,12 +316,12 @@ namespace io::http
 		{
 			// First initialize buffer if not exist and parser with user headers object.
 			if(!buf) buf.emplace();
-			parser.emplace<parser_buffer>(std::move(response_header));
+			parser.emplace<response_parser<buffer_body>>(std::move(response_header));
 
 			// Read header if not nullopt -> Move response headers back.
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream, parser_buffer & parser) -> io::coro<void>
+				[&](meta::not_nullopt auto && stream, response_parser<buffer_body> & parser) -> io::coro<void>
 				{
 					co_await beast::http::async_read_header(stream, *buf, parser, io::use_coro);
 					response_header = parser.get();
@@ -310,7 +334,7 @@ namespace io::http
 		{
 			// Deduse types.
 			using body_type = meta::make_body_type<decltype(body)>;
-			using parser_mutated_type = beast::http::response_parser<body_type>;
+			using parser_mutated_type = response_parser<body_type>;
 
 			co_await std::visit(meta::overloaded
 			{
@@ -339,7 +363,7 @@ namespace io::http
 			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream, parser_buffer & parser) -> io::coro<std::optional<std::size_t>>
+				[&](meta::not_nullopt auto && stream, response_parser<buffer_body> & parser) -> io::coro<std::optional<std::size_t>>
 				{
 					if(!parser.is_done())
 					{
