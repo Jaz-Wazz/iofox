@@ -169,7 +169,7 @@ namespace io::ssl
 	inline auto context() -> io::coro<std::reference_wrapper<asio::ssl::context>>
 	{
 		io::service<asio::ssl::context> service;
-		co_return co_await service.get_or_make(asio::ssl::context::tlsv13_client);
+		co_return co_await service.get_or_make(asio::ssl::context::tls);
 	}
 
 	// Set hostname tls extension in stream.
