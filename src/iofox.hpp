@@ -390,11 +390,10 @@ namespace io::http
 	// Basic response object.
 	template <typename T = void> class response: public beast::http::response<meta::make_body_type<T>>
 	{
-		prv using base = beast::http::response<meta::make_body_type<T>>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
 
-		pbl using base::operator=;
-		pbl using base::operator[];
+		pbl using beast::http::response<meta::make_body_type<T>>::operator=;
+		pbl using beast::http::response<meta::make_body_type<T>>::operator[];
 
 		pbl response(unsigned int result = 200, header_list headers = {})
 		{
