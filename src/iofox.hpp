@@ -252,35 +252,10 @@ namespace io::http
 			ssl_stream
 		>;
 
-		prv using any_parser = std::variant
-		<
-			std::nullopt_t,
-			response_parser<empty_body>,
-			response_parser<string_body>,
-			response_parser<buffer_body>,
-			response_parser<file_body>,
-			response_parser<vector_body<char>>,
-			response_parser<vector_body<std::byte>>,
-			response_parser<vector_body<std::int8_t>>,
-			response_parser<vector_body<std::uint8_t>>
-		>;
-
-		prv using any_serializer = std::variant
-		<
-			std::nullopt_t,
-			request_serializer<empty_body>,
-			request_serializer<string_body>,
-			request_serializer<buffer_body>,
-			request_serializer<file_body>,
-			request_serializer<vector_body<char>>,
-			request_serializer<vector_body<std::byte>>,
-			request_serializer<vector_body<std::int8_t>>,
-			request_serializer<vector_body<std::uint8_t>>
-		>;
-
 		prv any_stream stream = std::nullopt;
-		prv any_parser parser = std::nullopt;
-		prv any_serializer serializer = std::nullopt;
+		prv std::optional<response_parser<buffer_body>> parser;
+		prv std::optional<request_serializer<buffer_body>> serializer;
+		prv std::optional<beast::http::request<buffer_body>> serializer_request;
 		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
@@ -303,108 +278,56 @@ namespace io::http
 			}
 		}
 
-		pbl auto write(auto & request) -> io::coro<void>
+		pbl auto write_header(auto & request_header) -> io::coro<void>
 		{
-			// Deduse body type from request -> Create serializer with dedused body type and initialize from request ref.
-			using body_type = typename std::remove_reference_t<decltype(request)>::body_type;
-			serializer.emplace<request_serializer<body_type>>(request);
+			// initialize.
+			serializer_request.emplace(request_header);
+			serializer.emplace(*serializer_request);
 
-			// Perform write.
+			// write header.
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream, request_serializer<body_type> & parser) -> io::coro<void>
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
 				{
-					co_await beast::http::async_write(stream, parser, io::use_coro);
+					co_await beast::http::async_write_header(stream, *serializer, io::use_coro);
 				},
-				[](auto && ...) -> io::coro<void> { co_return; },
-			}, stream, serializer);
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream);
+		}
+
+		pbl auto write_body_piece(char * buffer, std::size_t size, bool last_piece = false) -> io::coro<std::size_t>
+		{
+			co_return co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
+				{
+					serializer_request->body().data = buffer;
+					serializer_request->body().size = size;
+					serializer_request->body().more = !last_piece;
+					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
+					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+					co_return bytes_writed;
+				},
+				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
+			}, stream);
+		}
+
+		pbl auto write_body_piece_tail() -> io::coro<void>
+		{
+			co_await write_body_piece(nullptr, 0, true);
 		}
 
 		pbl auto read(auto & response) -> io::coro<void>
 		{
-			// First initialize buffer if not exist.
-			if(!buf) buf.emplace();
-
-			// Deduse body type from response -> Create parser with dedused body type and initialize from moved response.
-			using body_type = typename std::remove_reference_t<decltype(response)>::body_type;
-			parser.emplace<response_parser<body_type>>(std::move(response));
-
-			// Perform read -> Move response back.
+			buf.emplace();
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream, response_parser<body_type> & parser) -> io::coro<void>
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
 				{
-					co_await beast::http::async_read(stream, *buf, parser, io::use_coro);
-					response = std::move(parser.get());
+					co_await beast::http::async_read(stream, *buf, response, io::use_coro);
 				},
 				[](auto && ...) -> io::coro<void> { co_return; },
-			}, stream, parser);
-		}
-
-		pbl auto read_header(auto & response_header) -> io::coro<void>
-		{
-			// First initialize buffer if not exist and parser with user headers object.
-			if(!buf) buf.emplace();
-			parser.emplace<response_parser<buffer_body>>(std::move(response_header));
-
-			// Read header if not nullopt -> Move response headers back.
-			co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream, response_parser<buffer_body> & parser) -> io::coro<void>
-				{
-					co_await beast::http::async_read_header(stream, *buf, parser, io::use_coro);
-					response_header = parser.get();
-				},
-				[](auto && ...) -> io::coro<void> { co_return; },
-			}, stream, parser);
-		}
-
-		pbl auto read_body(auto & body) -> io::coro<void>
-		{
-			// Deduse types.
-			using body_type = meta::make_body_type<decltype(body)>;
-			using parser_mutated_type = response_parser<body_type>;
-
-			co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream, meta::not_same<std::nullopt_t, parser_mutated_type> auto && parser) -> io::coro<void>
-				{
-					// Make local mutated parser
-					parser_mutated_type p {std::move(parser)};
-
-					// Extract universal body reference.
-					auto & body_ref = [&]() -> auto &
-					{
-						if constexpr (meta::is_file_body<body_type>) return p.get().body().file(); else return p.get().body();
-					}();
-
-					// Move body to parser -> Perform read -> Move body back.
-					body_ref = std::move(body);
-					co_await beast::http::async_read(stream, *buf, p, io::use_coro);
-					body = std::move(body_ref);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; },
-			}, stream, parser);
-		}
-
-		pbl auto read_body_chunk(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
-		{
-			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
-			co_return co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream, response_parser<buffer_body> & parser) -> io::coro<std::optional<std::size_t>>
-				{
-					if(!parser.is_done())
-					{
-						parser.get().body().data = buffer;
-						parser.get().body().size = size;
-						auto [err, bytes_readed] = co_await beast::http::async_read(stream, *buf, parser, asio::as_tuple(io::use_coro));
-						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-						co_return size - parser.get().body().size;
-					} else co_return std::nullopt;
-				},
-				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
-			}, stream, parser);
+			}, stream);
 		}
 
 		pbl void disconnect()
@@ -421,11 +344,10 @@ namespace io::http
 	// Basic request object.
 	template <typename T = void> class request: public beast::http::request<meta::make_body_type<T>>
 	{
-		prv using base = beast::http::request<meta::make_body_type<T>>;
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
 
-		pbl using base::operator=;
-		pbl using base::operator[];
+		pbl using beast::http::request<meta::make_body_type<T>>::operator=;
+		pbl using beast::http::request<meta::make_body_type<T>>::operator[];
 
 		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
 		{
