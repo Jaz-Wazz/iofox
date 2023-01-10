@@ -242,8 +242,6 @@ namespace io::http
 		using file_body		= beast::http::file_body;
 
 		template <typename T> using vector_body			= beast::http::vector_body<T>;
-		template <typename T> using response_parser		= beast::http::response_parser<T>;
-		template <typename T> using request_serializer	= beast::http::request_serializer<T>;
 
 		prv using any_stream = std::variant
 		<
@@ -252,10 +250,21 @@ namespace io::http
 			ssl_stream
 		>;
 
+		prv template <typename T> class response_parser: public beast::http::response_parser<T>
+		{
+			pbl auto message() -> beast::http::response<T> & { return get(); }
+		};
+
+		prv template <typename T> class request_serializer: public beast::http::request_serializer<T>
+		{
+			prv beast::http::request<T> msg;
+			pbl request_serializer(auto... args): msg(std::forward<decltype(args)>(args)...), beast::http::request_serializer<T>(msg) {}
+			pbl auto message() -> beast::http::request<T> & { return msg; }
+		};
+
 		prv any_stream stream = std::nullopt;
 		prv std::optional<response_parser<buffer_body>> parser;
 		prv std::optional<request_serializer<buffer_body>> serializer;
-		prv std::optional<beast::http::request<buffer_body>> serializer_request;
 		prv std::optional<beast::flat_buffer> buf;
 
 		pbl auto connect(io::url url) -> io::coro<void>
@@ -281,8 +290,7 @@ namespace io::http
 		pbl auto write_header(auto & request_header) -> io::coro<void>
 		{
 			// initialize.
-			serializer_request.emplace(request_header);
-			serializer.emplace(*serializer_request);
+			serializer.emplace(request_header);
 
 			// write header.
 			co_await std::visit(meta::overloaded
@@ -301,9 +309,9 @@ namespace io::http
 			{
 				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
 				{
-					serializer_request->body().data = buffer;
-					serializer_request->body().size = size;
-					serializer_request->body().more = !last_piece;
+					serializer->message().body().data = buffer;
+					serializer->message().body().size = size;
+					serializer->message().body().more = !last_piece;
 					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
