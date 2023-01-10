@@ -346,6 +346,26 @@ namespace io::http
 			response_header = std::move(parser->get().base());
 		}
 
+		pbl auto read_body_piece(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
+		{
+			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
+			co_return co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<std::optional<std::size_t>>
+				{
+					if(!parser->is_done())
+					{
+						parser->get().body().data = buffer;
+						parser->get().body().size = size;
+						auto [err, bytes_readed] = co_await beast::http::async_read(stream, *buf, *parser, asio::as_tuple(io::use_coro));
+						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+						co_return size - parser->get().body().size;
+					} else co_return std::nullopt;
+				},
+				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+			}, stream);
+		}
+
 		pbl auto read(auto & response) -> io::coro<void>
 		{
 			buf.emplace();
