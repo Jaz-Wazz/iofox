@@ -52,17 +52,22 @@ auto coro() -> io::coro<void>
 
 	io::http::response_header response_header;
 	co_await client.read_header(response_header);
-
-	std::string out;
-	char buffer[4];
-	while(auto bytes_readed = co_await client.read_body_piece(buffer, 4))
-	{
-		fmt::print("read: {} bytes.\n", *bytes_readed);
-		out += std::string(buffer, *bytes_readed);
-	}
-
 	std::cout << response_header << '\n';
-	std::cout << out << '\n';
+
+	std::string response_body;
+	co_await client.read_body(response_body);
+	std::cout << response_body << '\n';
+
+	// std::string out;
+	// char buffer[4];
+	// while(auto bytes_readed = co_await client.read_body_piece(buffer, 4))
+	// {
+	// 	fmt::print("read: {} bytes.\n", *bytes_readed);
+	// 	out += std::string(buffer, *bytes_readed);
+	// }
+
+	// std::cout << response_header << '\n';
+	// std::cout << out << '\n';
 }
 
 int main() try
