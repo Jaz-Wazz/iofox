@@ -18,6 +18,7 @@
 #include <boost/beast/http/file_body.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <fmt/core.h>
+#include <fstream>
 #include <iofox.hpp>
 #include <twitch.hpp>
 #include <util.hpp>
@@ -57,24 +58,82 @@ auto coro() -> io::coro<void>
 	std::string response_body;
 	co_await client.read_body(response_body);
 	std::cout << response_body << '\n';
+}
 
-	// std::string out;
-	// char buffer[4];
-	// while(auto bytes_readed = co_await client.read_body_piece(buffer, 4))
-	// {
-	// 	fmt::print("read: {} bytes.\n", *bytes_readed);
-	// 	out += std::string(buffer, *bytes_readed);
-	// }
+auto read_big_file() -> io::coro<void>
+{
+	io::http::client client;
+	co_await client.connect("https://sabnzbd.org");
 
-	// std::cout << response_header << '\n';
-	// std::cout << out << '\n';
+	io::http::request_header request_header {"GET", "/tests/internetspeed/50MB.bin", {{"host", "sabnzbd.org"}}};
+	co_await client.write_header(request_header);
+
+	io::http::response_header response_header;
+	co_await client.read_header(response_header);
+	std::cout << response_header;
+
+	std::string response_body;
+	std::cout << "start read" << '\n';
+	co_await client.read_body(response_body);
+	std::cout << "to file" << '\n';
+	std::ofstream("50mb.bin") << response_body;
+}
+
+auto read_chunked_encoding() -> io::coro<void>
+{
+	io::http::client client;
+	co_await client.connect("https://jigsaw.w3.org");
+
+	io::http::request_header request_header {"GET", "/HTTP/ChunkedScript", {{"host", "jigsaw.w3.org"}}};
+	co_await client.write_header(request_header);
+
+	io::http::response_header response_header;
+	co_await client.read_header(response_header);
+	std::cout << response_header;
+
+	std::string response_body;
+	co_await client.read_body(response_body);
+	std::cout << response_body << '\n';
+}
+
+auto read_consistent_test() -> io::coro<void>
+{
+	io::http::client client;
+	// co_await client.connect("https://jigsaw.w3.org");
+	// io::http::request_header request_header {"GET", "/HTTP/ChunkedScript", {{"host", "jigsaw.w3.org"}}};
+	// co_await client.write_header(request_header);
+
+	// co_await client.connect("https://www.google.com");
+	// io::http::request_header request_header {"GET", "/", {{"host", "www.google.com"}}};
+	// co_await client.write_header(request_header);
+
+	// co_await client.connect("https://exmaple.com");
+	// io::http::request_header request_header {"GET", "/", {{"host", "exmaple.com"}}};
+	// co_await client.write_header(request_header);
+
+	co_await client.connect("https://adbtc.top");
+	io::http::request_header request_header {"GET", "/", {{"host", "adbtc.top"}}};
+	co_await client.write_header(request_header);
+
+	io::http::response<std::string> response;
+	co_await client.read_basic(response);
+	std::cout << response << '\n';
+}
+
+auto generate_test() -> io::coro<void>
+{
+	io::http::response<std::string> response {200, {{"key", "val"}, {"foo", "bar"}}};
+	response.body() = "wouagwagnwae\n;ogiwae\nfowiajfawoeg\niahweg\noiawegol";
+	response.chunked(true);
+	std::cout << response << '\n';
+	co_return;
 }
 
 int main() try
 {
 	io::windows::set_asio_locale(io::windows::lang::english);
 	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
+	asio::co_spawn(ctx, generate_test(), io::rethrowed);
 	return ctx.run();
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }

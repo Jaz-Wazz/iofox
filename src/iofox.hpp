@@ -326,10 +326,24 @@ namespace io::http
 			co_await write_body_piece(nullptr, 0, true);
 		}
 
+		pbl auto read_basic(auto & response) -> io::coro<void>
+		{
+			buf.emplace();
+			co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
+				{
+					co_await beast::http::async_read(stream, *buf, response, io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream);
+		}
+
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
 			// Initialize.
 			parser.emplace();
+			parser->body_limit(boost::none);
 			buf.emplace();
 
 			// Read header.
@@ -346,7 +360,7 @@ namespace io::http
 			response_header = parser->get().base();
 		}
 
-		pbl auto read_body_piece(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
+		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
 		{
 			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
 			co_return co_await std::visit(meta::overloaded
@@ -366,37 +380,25 @@ namespace io::http
 			}, stream);
 		}
 
-		pbl auto read_body(std::string & body, const std::size_t buffer_size = 12) -> io::coro<void>
+		pbl auto read_body(std::string & body) -> io::coro<void>
 		{
-			// if(parser->message().has_content_length())
-			// {
-			// 	std::size_t content_length = *parser->message().payload_size();
-			// 	fmt::print("[io::http::client] - detect body size from content-length header: '{}' octets.\n", content_length);
-
-			// 	for(int pos = 0; pos < content_length; pos += buffer_size)
-			// 	{
-			// 		auto block_size = (content_length - pos < buffer_size) ? content_length - pos : buffer_size;
-			// 		fmt::print("[io::http::client] - read body block: [{:4} -> {:<4}] ({} octets).\n", pos, pos + block_size, block_size);
-			// 		auto bytes_readed = co_await read_body_piece(body.data() + pos, block_size);
-			// 	}
-			// }
-			// if(parser->message().chunked())
-			// {
-			// 	fmt::print("[io::http::client] - reading chunked body.\n");
-
-			char buffer[buffer_size];
-			// co_await read_body_piece(nullptr, buffer_size);
-			while(auto octets_readed = co_await read_body_piece(buffer, buffer_size))
+			if(parser->message().has_content_length())
 			{
-
+				std::size_t content_length = std::stoull(parser->message()["Content-Length"].to_string());
+				fmt::print("[io::http::client] - reading default body, size: '{}' octets.\n", content_length);
+				body.resize_and_overwrite(content_length, [&](auto...) { return content_length; });
+				auto octets_readed = co_await read_body_octets(body.data(), content_length);
+				body.resize(octets_readed.value_or(0));
 			}
-
-				// for(char buffer[buffer_size]; auto octets_readed = co_await read_body_piece(buffer, buffer_size);)
-				// {
-				// 	// body.append(buffer, *octets_readed);
-				// 	// fmt::print("[debug] Read {} octets.\n", *octets_readed);
-				// }
-			// }
+			if(parser->message().chunked())
+			{
+				fmt::print("[io::http::client] - reading chunked body.\n");
+				for(char buffer[12]; auto octets_readed = co_await read_body_octets(buffer, 12);)
+				{
+					body.append(buffer, *octets_readed);
+					fmt::print("[debug] Read {} octets.\n", *octets_readed);
+				}
+			}
 		}
 
 		pbl auto write_body(auto & body) -> io::coro<void>
