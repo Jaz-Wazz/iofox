@@ -34,7 +34,7 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	io::http::client<true> client;
+	io::http::client client;
 	// co_await client.connect("https://jigsaw.w3.org");
 	// io::http::request_header request_header {"GET", "/HTTP/ChunkedScript", {{"host", "jigsaw.w3.org"}}};
 	// co_await client.write_header(request_header);

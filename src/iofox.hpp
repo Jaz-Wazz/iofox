@@ -33,7 +33,6 @@
 #include <type_traits>
 #include <uriparser/Uri.h>
 #include <fmt/core.h>
-#include <fmt/color.h>
 #include <openssl/tls1.h>
 #include <optional>
 #include <stdexcept>
@@ -233,7 +232,7 @@ namespace io::meta
 namespace io::http
 {
 	// Basic high-level http/https client.
-	template <bool verbose = false> class client
+	class client
 	{
 		using tcp_stream	= asio::ip::tcp::socket;
 		using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
@@ -381,32 +380,21 @@ namespace io::http
 			}, stream);
 		}
 
-		template <typename... T> constexpr void log(fmt::format_string<T...> fmt, T && ... args)
-		{
-			if constexpr (verbose) fmt::print(fmt::fg(fmt::color::gray), "[io::http::client] - {}\n", fmt::format(fmt, std::forward<T>(args)...));
-		}
-
 		pbl auto read_body(std::string & body) -> io::coro<void>
 		{
 			if(parser->message().has_content_length())
 			{
 				std::size_t content_length = std::stoull(parser->message()["Content-Length"].to_string());
-				fmt::print("[io::http::client] - reading default body, size: '{}' octets.\n", content_length);
 				body.resize_and_overwrite(content_length, [&](auto...) { return content_length; });
 				auto octets_readed = co_await read_body_octets(body.data(), content_length);
 				body.resize(octets_readed.value_or(0));
 			}
 			if(parser->message().chunked())
 			{
-				log("{:<10} {:<10} {:<10}", "Octets:", "Size:", "Capacity:");
 				for(int i = 0; true; i += 1024)
 				{
 					body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
 					auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
-					// fmt::print("[io::http::client] Read {} octets, size: {:3}, capacity: {:3}.\n", octets_readed.value_or(0), body.size(), body.capacity());
-					// fmt::print("[io::http::client] - Octets read: {:<6} String size: {:<6} String capacity: {:<6}.\n", octets_readed.value_or(0), body.size(), body.capacity());
-					// log("Octets read: {:<6} Size: {:<6} Capacity: {:<6}.\n", octets_readed.value_or(0), body.size(), body.capacity());
-					log("{:<10} {:<10} {:<10}", octets_readed.value_or(0), body.size(), body.capacity());
 					if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
 				}
 			}
