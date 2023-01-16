@@ -11,10 +11,12 @@
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/as_tuple.hpp>
+#include <boost/asio/write.hpp>
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/http/chunk_encode.hpp>
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/file_body.hpp>
 #include <boost/beast/http/message.hpp>
@@ -41,6 +43,8 @@
 #include <utility>
 #include <winnt.h>
 #include <iostream>
+
+#include <boost/beast.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
@@ -422,15 +426,15 @@ namespace io::http
 			}, stream);
 		}
 
-		pbl auto write_body_piece(char * buffer, std::size_t size, bool last_piece = false) -> io::coro<std::size_t>
+		pbl auto write_body_octets(const char * buffer, std::size_t size, bool last_buffer = false) -> io::coro<std::size_t>
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
 				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
 				{
-					serializer->message().body().data = buffer;
+					serializer->message().body().data = const_cast<char *>(buffer);
 					serializer->message().body().size = size;
-					serializer->message().body().more = !last_piece;
+					serializer->message().body().more = !last_buffer;
 					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
@@ -439,9 +443,16 @@ namespace io::http
 			}, stream);
 		}
 
-		pbl auto write_body_piece_tail() -> io::coro<void>
+		pbl auto write_body_chunk_tail() -> io::coro<void>
 		{
-			co_await write_body_piece(nullptr, 0, true);
+			co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
+				{
+					co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream);
 		}
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
