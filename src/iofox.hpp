@@ -44,8 +44,6 @@
 #include <winnt.h>
 #include <iostream>
 
-#include <boost/beast.hpp>
-
 #define asio		boost::asio
 #define beast		boost::beast
 #define this_coro	asio::this_coro
