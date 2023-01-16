@@ -35,29 +35,15 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto coro() -> io::coro<void>
 {
 	io::http::client client;
-	// co_await client.connect("https://jigsaw.w3.org");
-	// io::http::request_header request_header {"GET", "/HTTP/ChunkedScript", {{"host", "jigsaw.w3.org"}}};
-	// co_await client.write_header(request_header);
+	co_await client.connect("https://httpbin.org");
 
-	// co_await client.connect("https://www.google.com");
-	// io::http::request_header request_header {"GET", "/", {{"host", "www.google.com"}}};
-	// co_await client.write_header(request_header);
-
-	// co_await client.connect("https://exmaple.com");
-	// io::http::request_header request_header {"GET", "/", {{"host", "exmaple.com"}}};
-	// co_await client.write_header(request_header);
-
-	co_await client.connect("https://adbtc.top");
-	io::http::request_header request_header {"GET", "/", {{"host", "adbtc.top"}}};
+	io::http::request_header request_header {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "3"}}};
 	co_await client.write_header(request_header);
+	co_await client.write_body_piece("hui", 3); // NOLINT
 
-	io::http::response_header response_header;
-	co_await client.read_header(response_header);
-	std::cout << response_header << '\n';
-
-	std::string body;
-	co_await client.read_body(body);
-	std::cout << body << '\n';
+	io::http::response<std::string> response;
+	co_await client.read(response);
+	std::cout << response << '\n';
 }
 
 int main() try

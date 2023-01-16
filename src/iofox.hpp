@@ -231,191 +231,6 @@ namespace io::meta
 
 namespace io::http
 {
-	// Basic high-level http/https client.
-	class client
-	{
-		using tcp_stream	= asio::ip::tcp::socket;
-		using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
-		using empty_body	= beast::http::empty_body;
-		using string_body	= beast::http::string_body;
-		using buffer_body	= beast::http::buffer_body;
-		using file_body		= beast::http::file_body;
-
-		template <typename T> using vector_body			= beast::http::vector_body<T>;
-
-		prv using any_stream = std::variant
-		<
-			std::nullopt_t,
-			tcp_stream,
-			ssl_stream
-		>;
-
-		prv template <typename T> class response_parser: public beast::http::response_parser<T>
-		{
-			using beast::http::response_parser<T>::response_parser;
-			pbl auto message() -> beast::http::response<T> & { return this->get(); }
-		};
-
-		prv template <typename T> class request_serializer: public beast::http::request_serializer<T>
-		{
-			prv beast::http::request<T> msg;
-			pbl request_serializer(auto... args): msg(std::forward<decltype(args)>(args)...), beast::http::request_serializer<T>(msg) {}
-			pbl auto message() -> beast::http::request<T> & { return msg; }
-		};
-
-		prv any_stream stream = std::nullopt;
-		prv std::optional<response_parser<buffer_body>> parser;
-		prv std::optional<request_serializer<buffer_body>> serializer;
-		prv std::optional<beast::flat_buffer> buf;
-
-		pbl auto connect(io::url url) -> io::coro<void>
-		{
-			if(url.protocol == "http")
-			{
-				tcp_stream stream {co_await this_coro::executor};
-				auto ips = co_await io::dns::resolve("http", url.host);
-				co_await asio::async_connect(stream, ips, io::use_coro);
-				this->stream = std::move(stream);
-			}
-			if(url.protocol == "https")
-			{
-				ssl_stream stream {co_await this_coro::executor, co_await io::ssl::context()};
-				auto ips = co_await io::dns::resolve("https", url.host);
-				co_await asio::async_connect(stream.next_layer(), ips, io::use_coro);
-				io::ssl::set_tls_extension_hostname(stream, url.host);
-				co_await stream.async_handshake(stream.client, io::use_coro);
-				this->stream = std::move(stream);
-			}
-		}
-
-		pbl auto write_header(auto & request_header) -> io::coro<void>
-		{
-			// Initialize.
-			serializer.emplace(request_header);
-
-			// Write header.
-			co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await beast::http::async_write_header(stream, *serializer, io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
-			}, stream);
-		}
-
-		pbl auto write_body_piece(char * buffer, std::size_t size, bool last_piece = false) -> io::coro<std::size_t>
-		{
-			co_return co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
-				{
-					serializer->message().body().data = buffer;
-					serializer->message().body().size = size;
-					serializer->message().body().more = !last_piece;
-					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
-					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-					co_return bytes_writed;
-				},
-				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
-			}, stream);
-		}
-
-		pbl auto write_body_piece_tail() -> io::coro<void>
-		{
-			co_await write_body_piece(nullptr, 0, true);
-		}
-
-		pbl auto read_basic(auto & response) -> io::coro<void>
-		{
-			buf.emplace();
-			co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await beast::http::async_read(stream, *buf, response, io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
-			}, stream);
-		}
-
-		pbl auto read_header(auto & response_header) -> io::coro<void>
-		{
-			// Initialize.
-			parser.emplace();
-			parser->body_limit(boost::none);
-			buf.emplace();
-
-			// Read header.
-			co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
-			}, stream);
-
-			// Return headers.
-			response_header = parser->get().base();
-		}
-
-		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
-		{
-			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
-			co_return co_await std::visit(meta::overloaded
-			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<std::optional<std::size_t>>
-				{
-					if(!parser->is_done())
-					{
-						parser->get().body().data = buffer;
-						parser->get().body().size = size;
-						auto [err, bytes_readed] = co_await beast::http::async_read(stream, *buf, *parser, asio::as_tuple(io::use_coro));
-						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-						co_return size - parser->get().body().size;
-					} else co_return std::nullopt;
-				},
-				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
-			}, stream);
-		}
-
-		pbl auto read_body(std::string & body) -> io::coro<void>
-		{
-			if(parser->message().has_content_length())
-			{
-				std::size_t content_length = std::stoull(parser->message()["Content-Length"].to_string());
-				body.resize_and_overwrite(content_length, [&](auto...) { return content_length; });
-				auto octets_readed = co_await read_body_octets(body.data(), content_length);
-				body.resize(octets_readed.value_or(0));
-			}
-			if(parser->message().chunked())
-			{
-				for(int i = 0; true; i += 1024)
-				{
-					body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
-					auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
-					if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
-				}
-			}
-		}
-
-		pbl auto write_body(auto & body) -> io::coro<void>
-		{
-			co_return;
-		}
-
-		pbl void disconnect()
-		{
-			std::visit(meta::overloaded
-			{
-				[](tcp_stream & stream) { stream.shutdown(stream.shutdown_both); stream.close(); },
-				[](ssl_stream & stream) { stream.next_layer().shutdown(tcp_stream::shutdown_both); stream.next_layer().close(); },
-				[](auto && ...) {},
-			}, stream);
-		}
-	};
-
 	// Basic request object.
 	template <typename T = void> class request: public beast::http::request<meta::make_body_type<T>>
 	{
@@ -531,6 +346,184 @@ namespace io::http
 		{
 			this->result(result);
 			for(auto && [header, value] : headers) this->insert(header, value);
+		}
+	};
+
+	// Basic high-level http/https client.
+	class client
+	{
+		using tcp_stream	= asio::ip::tcp::socket;
+		using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
+		using empty_body	= beast::http::empty_body;
+		using string_body	= beast::http::string_body;
+		using buffer_body	= beast::http::buffer_body;
+		using file_body		= beast::http::file_body;
+
+		template <typename T> using vector_body			= beast::http::vector_body<T>;
+
+		prv using any_stream = std::variant
+		<
+			std::nullopt_t,
+			tcp_stream,
+			ssl_stream
+		>;
+
+		prv template <typename T> class response_parser: public beast::http::response_parser<T>
+		{
+			using beast::http::response_parser<T>::response_parser;
+			pbl auto message() -> beast::http::response<T> & { return this->get(); }
+		};
+
+		prv template <typename T> class request_serializer: public beast::http::request_serializer<T>
+		{
+			prv beast::http::request<T> msg;
+			pbl request_serializer(auto... args): msg(std::forward<decltype(args)>(args)...), beast::http::request_serializer<T>(msg) {}
+			pbl auto message() -> beast::http::request<T> & { return msg; }
+		};
+
+		prv any_stream stream = std::nullopt;
+		prv std::optional<response_parser<buffer_body>> parser;
+		prv std::optional<request_serializer<buffer_body>> serializer;
+		prv std::optional<beast::flat_buffer> buf;
+
+		pbl auto connect(io::url url) -> io::coro<void>
+		{
+			if(url.protocol == "http")
+			{
+				tcp_stream stream {co_await this_coro::executor};
+				auto ips = co_await io::dns::resolve("http", url.host);
+				co_await asio::async_connect(stream, ips, io::use_coro);
+				this->stream = std::move(stream);
+			}
+			if(url.protocol == "https")
+			{
+				ssl_stream stream {co_await this_coro::executor, co_await io::ssl::context()};
+				auto ips = co_await io::dns::resolve("https", url.host);
+				co_await asio::async_connect(stream.next_layer(), ips, io::use_coro);
+				io::ssl::set_tls_extension_hostname(stream, url.host);
+				co_await stream.async_handshake(stream.client, io::use_coro);
+				this->stream = std::move(stream);
+			}
+		}
+
+		pbl auto write_header(auto & request_header) -> io::coro<void>
+		{
+			// Initialize.
+			serializer.emplace(request_header);
+
+			// Write header.
+			co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
+				{
+					co_await beast::http::async_write_header(stream, *serializer, io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream);
+		}
+
+		pbl auto write_body_piece(char * buffer, std::size_t size, bool last_piece = false) -> io::coro<std::size_t>
+		{
+			co_return co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
+				{
+					serializer->message().body().data = buffer;
+					serializer->message().body().size = size;
+					serializer->message().body().more = !last_piece;
+					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
+					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+					co_return bytes_writed;
+				},
+				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
+			}, stream);
+		}
+
+		pbl auto write_body_piece_tail() -> io::coro<void>
+		{
+			co_await write_body_piece(nullptr, 0, true);
+		}
+
+		pbl auto read_header(auto & response_header) -> io::coro<void>
+		{
+			// Initialize.
+			parser.emplace();
+			parser->body_limit(boost::none);
+			buf.emplace();
+
+			// Read header.
+			co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<void>
+				{
+					co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro);
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream);
+
+			// Return headers.
+			response_header = parser->get().base();
+		}
+
+		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
+		{
+			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
+			co_return co_await std::visit(meta::overloaded
+			{
+				[&](meta::not_nullopt auto && stream) -> io::coro<std::optional<std::size_t>>
+				{
+					if(!parser->is_done())
+					{
+						parser->get().body().data = buffer;
+						parser->get().body().size = size;
+						auto [err, bytes_readed] = co_await beast::http::async_read(stream, *buf, *parser, asio::as_tuple(io::use_coro));
+						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
+						co_return size - parser->get().body().size;
+					} else co_return std::nullopt;
+				},
+				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+			}, stream);
+		}
+
+		pbl auto read_body(std::string & body) -> io::coro<void>
+		{
+			if(parser->message().has_content_length())
+			{
+				std::size_t content_length = std::stoull(parser->message()["Content-Length"].to_string());
+				body.resize_and_overwrite(content_length, [&](auto...) { return content_length; });
+				auto octets_readed = co_await read_body_octets(body.data(), content_length);
+				body.resize(octets_readed.value_or(0));
+			}
+			if(parser->message().chunked())
+			{
+				for(int i = 0; true; i += 1024)
+				{
+					body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
+					auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
+					if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
+				}
+			}
+		}
+
+		pbl auto read(io::http::response<std::string> & response) -> io::coro<void>
+		{
+			co_await read_header(response.base());
+			co_await read_body(response.body());
+		}
+
+		pbl auto write_body(auto & body) -> io::coro<void>
+		{
+			co_return;
+		}
+
+		pbl void disconnect()
+		{
+			std::visit(meta::overloaded
+			{
+				[](tcp_stream & stream) { stream.shutdown(stream.shutdown_both); stream.close(); },
+				[](ssl_stream & stream) { stream.next_layer().shutdown(tcp_stream::shutdown_both); stream.next_layer().close(); },
+				[](auto && ...) {},
+			}, stream);
 		}
 	};
 };
