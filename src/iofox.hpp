@@ -412,11 +412,8 @@ namespace io::http
 			// Write header.
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await beast::http::async_write_header(stream, *serializer, io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
+				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_write_header(stream, *serializer, io::use_coro); },
+				[](std::nullopt_t) -> io::coro<void> { co_return; }
 			}, stream);
 		}
 
@@ -424,7 +421,7 @@ namespace io::http
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<std::size_t>
+				[&](auto && stream) -> io::coro<std::size_t>
 				{
 					serializer->message().body().data = const_cast<char *>(buffer);
 					serializer->message().body().size = size;
@@ -433,7 +430,7 @@ namespace io::http
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
 				},
-				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
+				[](std::nullopt_t) -> io::coro<std::size_t> { co_return 0; },
 			}, stream);
 		}
 
@@ -441,11 +438,8 @@ namespace io::http
 		{
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
+				[&](auto && stream) -> io::coro<void> { co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro); },
+				[](std::nullopt_t) -> io::coro<void> { co_return; }
 			}, stream);
 		}
 
@@ -459,11 +453,8 @@ namespace io::http
 			// Read header.
 			co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<void>
-				{
-					co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro);
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
+				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro); },
+				[](std::nullopt_t) -> io::coro<void> { co_return; }
 			}, stream);
 
 			// Return headers.
@@ -475,7 +466,7 @@ namespace io::http
 			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](meta::not_nullopt auto && stream) -> io::coro<std::optional<std::size_t>>
+				[&](auto && stream) -> io::coro<std::optional<std::size_t>>
 				{
 					if(!parser->is_done())
 					{
@@ -486,7 +477,7 @@ namespace io::http
 						co_return size - parser->get().body().size;
 					} else co_return std::nullopt;
 				},
-				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+				[](std::nullopt_t) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
 			}, stream);
 		}
 
@@ -527,7 +518,7 @@ namespace io::http
 			{
 				[](tcp_stream & stream) { stream.shutdown(stream.shutdown_both); stream.close(); },
 				[](ssl_stream & stream) { stream.next_layer().shutdown(tcp_stream::shutdown_both); stream.next_layer().close(); },
-				[](auto && ...) {},
+				[](std::nullopt_t) {},
 			}, stream);
 		}
 	};
