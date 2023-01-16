@@ -19,10 +19,9 @@ auto coro() -> io::coro<void>
 
 	io::http::request_header request_header {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}};
 	co_await client.write_header(request_header);
-	co_await client.write_body_octets("hui", 3);
-	co_await client.write_body_octets("sui", 3);
-	co_await client.write_body_octets("xui", 3);
-	co_await client.write_body_chunk_tail();
+
+	std::string body = "huisuixhugwef";
+	co_await client.write_body(body);
 
 	io::http::response<std::string> response;
 	co_await client.read(response);

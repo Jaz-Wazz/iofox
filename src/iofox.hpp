@@ -438,6 +438,11 @@ namespace io::http
 			}, stream);
 		}
 
+		pbl auto write_body(std::string & body) -> io::coro<void>
+		{
+			co_await write_body_octets(body.data(), body.size(), true);
+		}
+
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
 			// Initialize.
@@ -500,11 +505,6 @@ namespace io::http
 		{
 			co_await read_header(response.base());
 			co_await read_body(response.body());
-		}
-
-		pbl auto write_body(auto & body) -> io::coro<void>
-		{
-			co_return;
 		}
 
 		pbl void disconnect()
