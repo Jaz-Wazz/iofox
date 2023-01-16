@@ -356,21 +356,15 @@ namespace io::http
 	// Basic high-level http/https client.
 	class client
 	{
-		using tcp_stream	= asio::ip::tcp::socket;
-		using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
-		using empty_body	= beast::http::empty_body;
-		using string_body	= beast::http::string_body;
-		using buffer_body	= beast::http::buffer_body;
-		using file_body		= beast::http::file_body;
+		prv using tcp_stream	= asio::ip::tcp::socket;
+		prv using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
+		prv using empty_body	= beast::http::empty_body;
+		prv using string_body	= beast::http::string_body;
+		prv using buffer_body	= beast::http::buffer_body;
+		prv using file_body		= beast::http::file_body;
 
-		template <typename T> using vector_body			= beast::http::vector_body<T>;
-
-		prv using any_stream = std::variant
-		<
-			std::nullopt_t,
-			tcp_stream,
-			ssl_stream
-		>;
+		prv template <typename T> using vector_body	= beast::http::vector_body<T>;
+		prv using any_stream = std::variant<std::nullopt_t, tcp_stream, ssl_stream>;
 
 		prv template <typename T> class response_parser: public beast::http::response_parser<T>
 		{
