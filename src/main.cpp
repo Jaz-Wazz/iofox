@@ -17,11 +17,8 @@ auto coro() -> io::coro<void>
 	io::http::client client;
 	co_await client.connect("https://httpbin.org");
 
-	io::http::request_header request_header {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}};
-	co_await client.write_header(request_header);
-
-	std::string body = "huisuixhugwef";
-	co_await client.write_body(body);
+	io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "body"};
+	co_await client.write(request);
 
 	io::http::response<std::string> response;
 	co_await client.read(response);

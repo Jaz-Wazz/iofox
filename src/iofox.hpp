@@ -248,32 +248,32 @@ namespace io::http
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, const std::string & body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = body; this->prepare_payload(); }
+		{ this->body() = body; }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, const std::string && body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = std::move(body); this->prepare_payload(); }
+		{ this->body() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, const std::vector<typename X::value_type> & body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = body; this->prepare_payload(); }
+		{ this->body() = body; }
 
 		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, const std::vector<typename X::value_type> && body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = std::move(body); this->prepare_payload(); }
+		{ this->body() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, io::file>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, io::file && body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body().file() = std::move(body); this->prepare_payload(); }
+		{ this->body().file() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, beast::file>, int>::type = 0>
 		request(std::string method, std::string target, header_list headers, beast::file && body)
 		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body().file() = std::move(body); this->prepare_payload(); }
+		{ this->body().file() = std::move(body); }
 	};
 
 	// Basic response object.
@@ -292,27 +292,27 @@ namespace io::http
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
 		response(unsigned int result, header_list headers, const std::string & body): response(result, std::move(headers))
-		{ this->body() = body; this->prepare_payload(); }
+		{ this->body() = body; }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
 		response(unsigned int result, header_list headers, std::string && body): response(result, std::move(headers))
-		{ this->body() = std::move(body); this->prepare_payload(); }
+		{ this->body() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
 		response(unsigned int result, header_list headers, const std::vector<typename X::value_type> & body): response(result, std::move(headers))
-		{ this->body() = body; this->prepare_payload(); }
+		{ this->body() = body; }
 
 		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
 		response(unsigned int result, header_list headers, std::vector<typename X::value_type> && body): response(result, std::move(headers))
-		{ this->body() = std::move(body); this->prepare_payload(); }
+		{ this->body() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, io::file>, int>::type = 0>
 		response(unsigned int result, header_list headers, io::file && body): response(result, std::move(headers))
-		{ this->body().file() = std::move(body); this->prepare_payload(); }
+		{ this->body().file() = std::move(body); }
 
 		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, beast::file>, int>::type = 0>
 		response(unsigned int result, header_list headers, beast::file && body): response(result, std::move(headers))
-		{ this->body().file() = std::move(body); this->prepare_payload(); }
+		{ this->body().file() = std::move(body); }
 	};
 
 	// Basic request header object.
@@ -441,6 +441,12 @@ namespace io::http
 		pbl auto write_body(std::string & body) -> io::coro<void>
 		{
 			co_await write_body_octets(body.data(), body.size(), true);
+		}
+
+		pbl auto write(io::http::request<std::string> & request) -> io::coro<void>
+		{
+			co_await write_header(request.base());
+			co_await write_body(request.body());
 		}
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
