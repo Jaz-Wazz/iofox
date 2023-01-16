@@ -359,7 +359,7 @@ namespace io::http
 		prv using file_body		= beast::http::file_body;
 
 		prv template <typename T> using vector_body	= beast::http::vector_body<T>;
-		prv using any_stream = std::variant<std::nullopt_t, tcp_stream, ssl_stream>;
+		prv using any_stream = std::variant<std::monostate, tcp_stream, ssl_stream>;
 
 		prv template <typename T> class response_parser: public beast::http::response_parser<T>
 		{
@@ -374,7 +374,7 @@ namespace io::http
 			pbl auto message() -> beast::http::request<T> & { return msg; }
 		};
 
-		prv any_stream stream = std::nullopt;
+		prv any_stream stream;
 		prv std::optional<response_parser<buffer_body>> parser;
 		prv std::optional<request_serializer<buffer_body>> serializer;
 		prv std::optional<beast::flat_buffer> buf;
@@ -408,7 +408,7 @@ namespace io::http
 			co_await std::visit(meta::overloaded
 			{
 				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_write_header(stream, *serializer, io::use_coro); },
-				[](std::nullopt_t) -> io::coro<void> { co_return; }
+				[](std::monostate) -> io::coro<void> { co_return; }
 			}, stream);
 		}
 
@@ -425,7 +425,7 @@ namespace io::http
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
 				},
-				[](std::nullopt_t) -> io::coro<std::size_t> { co_return 0; },
+				[](std::monostate) -> io::coro<std::size_t> { co_return 0; },
 			}, stream);
 		}
 
@@ -434,7 +434,7 @@ namespace io::http
 			co_await std::visit(meta::overloaded
 			{
 				[&](auto && stream) -> io::coro<void> { co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro); },
-				[](std::nullopt_t) -> io::coro<void> { co_return; }
+				[](std::monostate) -> io::coro<void> { co_return; }
 			}, stream);
 		}
 
@@ -449,7 +449,7 @@ namespace io::http
 			co_await std::visit(meta::overloaded
 			{
 				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro); },
-				[](std::nullopt_t) -> io::coro<void> { co_return; }
+				[](std::monostate) -> io::coro<void> { co_return; }
 			}, stream);
 
 			// Return headers.
@@ -472,7 +472,7 @@ namespace io::http
 						co_return size - parser->get().body().size;
 					} else co_return std::nullopt;
 				},
-				[](std::nullopt_t) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+				[](std::monostate) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
 			}, stream);
 		}
 
@@ -513,7 +513,7 @@ namespace io::http
 			{
 				[](tcp_stream & stream) { stream.shutdown(stream.shutdown_both); stream.close(); },
 				[](ssl_stream & stream) { stream.next_layer().shutdown(tcp_stream::shutdown_both); stream.next_layer().close(); },
-				[](std::nullopt_t) {},
+				[](std::monostate) {},
 			}, stream);
 		}
 	};
