@@ -1,9 +1,7 @@
 #pragma once
-#include "iofox.hpp"
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ssl/error.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -42,7 +40,6 @@
 #include <variant>
 #include <utility>
 #include <winnt.h>
-#include <iostream>
 
 #define asio		boost::asio
 #define beast		boost::beast
