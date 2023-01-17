@@ -363,7 +363,7 @@ namespace io::http
 
 		prv template <typename T> class response_parser: public beast::http::response_parser<T>
 		{
-			using beast::http::response_parser<T>::response_parser;
+			pbl response_parser() { this->body_limit(boost::none); }
 			pbl auto message() -> beast::http::response<T> & { return this->get(); }
 		};
 
@@ -453,7 +453,6 @@ namespace io::http
 		{
 			// Initialize.
 			parser.emplace();
-			parser->body_limit(boost::none);
 			buf.emplace();
 
 			// Read header.
