@@ -463,7 +463,7 @@ namespace io::http
 			}, stream);
 
 			// Return headers.
-			response_header = parser->get().base();
+			response_header = std::move(parser->get().base());
 		}
 
 		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
@@ -488,14 +488,13 @@ namespace io::http
 
 		pbl auto read_body(std::string & body) -> io::coro<void>
 		{
-			if(parser->message().has_content_length())
+			if(auto content_length = parser->content_length())
 			{
-				std::size_t content_length = std::stoull(parser->message()["Content-Length"].to_string());
-				body.resize_and_overwrite(content_length, [&](auto...) { return content_length; });
-				auto octets_readed = co_await read_body_octets(body.data(), content_length);
+				body.resize_and_overwrite(*content_length, [&](auto...) { return *content_length; });
+				auto octets_readed = co_await read_body_octets(body.data(), *content_length);
 				body.resize(octets_readed.value_or(0));
 			}
-			if(parser->message().chunked())
+			if(parser->chunked())
 			{
 				for(int i = 0; true; i += 1024)
 				{
