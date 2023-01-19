@@ -440,7 +440,7 @@ namespace io::http
 			co_await write_body_octets(body.data(), body.size(), true);
 		}
 
-		pbl auto write(io::http::request<std::string> & request) -> io::coro<void>
+		pbl auto write(auto & request) -> io::coro<void>
 		{
 			co_await write_header(request.base());
 			co_await write_body(request.body());
