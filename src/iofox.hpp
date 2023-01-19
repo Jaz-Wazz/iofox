@@ -361,7 +361,7 @@ namespace io::http
 		{
 			pbl beast::http::response_parser<beast::http::buffer_body> parser;
 			pbl beast::flat_buffer buffer;
-			pbl stage_read(beast::http::response_header<> && header): parser(std::move(header)) {}
+			pbl stage_read(beast::http::response_header<> && header): parser(std::move(header)) { parser.body_limit(boost::none); }
 		};
 
 		prv class stage_write
