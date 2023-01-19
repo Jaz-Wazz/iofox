@@ -381,9 +381,16 @@ namespace io::http
 			pbl stage_read(beast::http::response_header<> && header): parser(std::move(header)) {}
 		};
 
+		prv class stage_write
+		{
+			pbl beast::http::request_serializer<beast::http::buffer_body> serializer;
+			pbl beast::http::request<beast::http::buffer_body> request;
+			pbl stage_write(beast::http::request_header<> && header): request(std::move(header)), serializer(request) {}
+		};
+
 		prv any_stream stream;
 		prv std::optional<request_serializer<buffer_body>> serializer;
-		prv std::variant<std::monostate, stage_read> stage;
+		prv std::variant<std::monostate, stage_read, stage_write> stage;
 
 		pbl auto connect(io::url url) -> io::coro<void>
 		{
@@ -407,32 +414,34 @@ namespace io::http
 
 		pbl auto write_header(auto & request_header) -> io::coro<void>
 		{
-			// Initialize.
-			serializer.emplace(request_header);
+			stage.emplace<stage_write>(std::move(request_header));
 
-			// Write header.
 			co_await std::visit(meta::overloaded
 			{
-				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_write_header(stream, *serializer, io::use_coro); },
-				[](std::monostate) -> io::coro<void> { co_return; }
-			}, stream);
+				[&](io::meta::not_same<std::monostate> auto && stream, stage_write & stage) -> io::coro<void>
+				{
+					co_await beast::http::async_write_header(stream, stage.serializer, io::use_coro);
+					request_header = std::move(stage.request.base());
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream, stage);
 		}
 
 		pbl auto write_body_octets(const char * buffer, std::size_t size, bool last_buffer = false) -> io::coro<std::size_t>
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](auto && stream) -> io::coro<std::size_t>
+				[&](io::meta::not_same<std::monostate> auto && stream, stage_write & stage) -> io::coro<std::size_t>
 				{
-					serializer->message().body().data = const_cast<char *>(buffer);
-					serializer->message().body().size = size;
-					serializer->message().body().more = !last_buffer;
-					auto [err, bytes_writed] = co_await beast::http::async_write(stream, *serializer, asio::as_tuple(io::use_coro));
+					stage.request.body().data = const_cast<char *>(buffer);
+					stage.request.body().size = size;
+					stage.request.body().more = !last_buffer;
+					auto [err, bytes_writed] = co_await beast::http::async_write(stream, stage.serializer, asio::as_tuple(io::use_coro));
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
 				},
-				[](std::monostate) -> io::coro<std::size_t> { co_return 0; },
-			}, stream);
+				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
+			}, stream, stage);
 		}
 
 		pbl auto write_body_chunk_tail() -> io::coro<void>
