@@ -197,8 +197,8 @@ namespace io::windows
 
 namespace io::meta
 {
-	// Concept check type for std::nullopt.
-	template <typename T> concept not_nullopt = typeid(T) != typeid(std::nullopt);
+	// Concept check type is not std::nullopt and std::monostate.
+	template <typename T> concept available = typeid(T) != typeid(std::nullopt) && typeid(T) != typeid(std::monostate);
 
 	// Concept check type for string body.
 	template <typename T> concept is_string_body = typeid(T) == typeid(beast::http::string_body);
@@ -397,7 +397,7 @@ namespace io::http
 
 			co_await std::visit(meta::overloaded
 			{
-				[&](io::meta::not_same<std::monostate> auto && stream, stage_write & stage) -> io::coro<void>
+				[&](meta::available auto & stream, stage_write & stage) -> io::coro<void>
 				{
 					co_await beast::http::async_write_header(stream, stage.serializer, io::use_coro);
 					request_header = std::move(stage.request.base());
@@ -410,7 +410,7 @@ namespace io::http
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](io::meta::not_same<std::monostate> auto && stream, stage_write & stage) -> io::coro<std::size_t>
+				[&](meta::available auto & stream, stage_write & stage) -> io::coro<std::size_t>
 				{
 					stage.request.body().data = const_cast<char *>(buffer);
 					stage.request.body().size = size;
@@ -427,7 +427,7 @@ namespace io::http
 		{
 			co_await std::visit(meta::overloaded
 			{
-				[&](auto && stream) -> io::coro<void> { co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro); },
+				[&](auto & stream) -> io::coro<void> { co_await asio::async_write(stream, beast::http::make_chunk_last(), io::use_coro); },
 				[](std::monostate) -> io::coro<void> { co_return; }
 			}, stream);
 		}
@@ -449,7 +449,7 @@ namespace io::http
 
 			co_await std::visit(meta::overloaded
 			{
-				[&](io::meta::not_same<std::monostate> auto && stream, stage_read & stage) -> io::coro<void>
+				[&](meta::available auto & stream, stage_read & stage) -> io::coro<void>
 				{
 					co_await beast::http::async_read_header(stream, stage.buffer, stage.parser, io::use_coro);
 					response_header = std::move(stage.parser.get().base());
@@ -462,7 +462,7 @@ namespace io::http
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](io::meta::not_same<std::monostate> auto && stream, stage_read & stage) -> io::coro<std::optional<std::size_t>>
+				[&](meta::available auto & stream, stage_read & stage) -> io::coro<std::optional<std::size_t>>
 				{
 					if(!stage.parser.is_done())
 					{
