@@ -55,6 +55,9 @@ namespace io
 	// Token indicating to use async task, current asio::awaitable<T>.
 	constexpr asio::use_awaitable_t<> use_coro;
 
+	// Token indicating to use async task and return result as tuple.
+	constexpr asio::as_tuple_t<asio::use_awaitable_t<>> use_coro_tuple;
+
 	// Token indicating to exception should be rethrown.
 	constexpr class
 	{
@@ -415,7 +418,7 @@ namespace io::http
 					stage.request.body().data = const_cast<char *>(buffer);
 					stage.request.body().size = size;
 					stage.request.body().more = !last_buffer;
-					auto [err, bytes_writed] = co_await beast::http::async_write(stream, stage.serializer, asio::as_tuple(io::use_coro));
+					auto [err, bytes_writed] = co_await beast::http::async_write(stream, stage.serializer, io::use_coro_tuple);
 					if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 					co_return bytes_writed;
 				},
@@ -468,7 +471,7 @@ namespace io::http
 					{
 						stage.parser.get().body().data = buffer;
 						stage.parser.get().body().size = size;
-						auto [err, bytes_readed] = co_await beast::http::async_read(stream, stage.buffer, stage.parser, asio::as_tuple(io::use_coro));
+						auto [err, bytes_readed] = co_await beast::http::async_read(stream, stage.buffer, stage.parser, io::use_coro_tuple);
 						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 						co_return size - stage.parser.get().body().size;
 					} else co_return std::nullopt;
