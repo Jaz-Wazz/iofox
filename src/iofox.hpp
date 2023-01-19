@@ -374,10 +374,16 @@ namespace io::http
 			pbl auto message() -> beast::http::request<T> & { return msg; }
 		};
 
+		prv class stage_read
+		{
+			pbl beast::http::response_parser<beast::http::buffer_body> parser;
+			pbl beast::flat_buffer buffer;
+			pbl stage_read(beast::http::response_header<> && header): parser(std::move(header)) {}
+		};
+
 		prv any_stream stream;
-		prv std::optional<response_parser<buffer_body>> parser;
 		prv std::optional<request_serializer<buffer_body>> serializer;
-		prv std::optional<beast::flat_buffer> buf;
+		prv std::variant<std::monostate, stage_read> stage;
 
 		pbl auto connect(io::url url) -> io::coro<void>
 		{
@@ -451,61 +457,66 @@ namespace io::http
 
 		pbl auto read_header(auto & response_header) -> io::coro<void>
 		{
-			// Initialize.
-			parser.emplace();
-			buf.emplace();
+			stage.emplace<stage_read>(std::move(response_header));
 
-			// Read header.
 			co_await std::visit(meta::overloaded
 			{
-				[&](auto && stream) -> io::coro<void> { co_await beast::http::async_read_header(stream, *buf, *parser, io::use_coro); },
-				[](std::monostate) -> io::coro<void> { co_return; }
-			}, stream);
-
-			// Return headers.
-			response_header = std::move(parser->get().base());
+				[&](io::meta::not_same<std::monostate> auto && stream, stage_read & stage) -> io::coro<void>
+				{
+					co_await beast::http::async_read_header(stream, stage.buffer, stage.parser, io::use_coro);
+					response_header = std::move(stage.parser.get().base());
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stream, stage);
 		}
 
 		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
 		{
-			// Check parser end state -> Set-up buffers -> Perform read -> Return readed chunk size.
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](auto && stream) -> io::coro<std::optional<std::size_t>>
+				[&](io::meta::not_same<std::monostate> auto && stream, stage_read & stage) -> io::coro<std::optional<std::size_t>>
 				{
-					if(!parser->is_done())
+					if(!stage.parser.is_done())
 					{
-						parser->get().body().data = buffer;
-						parser->get().body().size = size;
-						auto [err, bytes_readed] = co_await beast::http::async_read(stream, *buf, *parser, asio::as_tuple(io::use_coro));
+						stage.parser.get().body().data = buffer;
+						stage.parser.get().body().size = size;
+						auto [err, bytes_readed] = co_await beast::http::async_read(stream, stage.buffer, stage.parser, asio::as_tuple(io::use_coro));
 						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
-						co_return size - parser->get().body().size;
+						co_return size - stage.parser.get().body().size;
 					} else co_return std::nullopt;
 				},
-				[](std::monostate) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
-			}, stream);
+				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+			}, stream, stage);
 		}
 
 		pbl auto read_body(std::string & body) -> io::coro<void>
 		{
-			if(auto content_length = parser->content_length())
+			co_await std::visit(meta::overloaded
 			{
-				body.resize_and_overwrite(*content_length, [&](auto...) { return *content_length; });
-				auto octets_readed = co_await read_body_octets(body.data(), *content_length);
-				body.resize(octets_readed.value_or(0));
-			}
-			if(parser->chunked())
-			{
-				for(int i = 0; true; i += 1024)
+				[&](stage_read & stage) -> io::coro<void>
 				{
-					body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
-					auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
-					if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
-				}
-			}
+					if(auto content_length = stage.parser.content_length())
+					{
+						body.resize_and_overwrite(*content_length, [&](auto...) { return *content_length; });
+						auto octets_readed = co_await read_body_octets(body.data(), *content_length);
+						body.resize(octets_readed.value_or(0));
+					}
+					if(stage.parser.chunked())
+					{
+						for(int i = 0; true; i += 1024)
+						{
+							body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
+							auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
+							if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
+						}
+					}
+					co_return;
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stage);
 		}
 
-		pbl auto read(io::http::response<std::string> & response) -> io::coro<void>
+		pbl auto read(auto & response) -> io::coro<void>
 		{
 			co_await read_header(response.base());
 			co_await read_body(response.body());
