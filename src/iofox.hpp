@@ -351,28 +351,8 @@ namespace io::http
 	// Basic high-level http/https client.
 	class client
 	{
-		prv using tcp_stream	= asio::ip::tcp::socket;
-		prv using ssl_stream	= asio::ssl::stream<asio::ip::tcp::socket>;
-		prv using empty_body	= beast::http::empty_body;
-		prv using string_body	= beast::http::string_body;
-		prv using buffer_body	= beast::http::buffer_body;
-		prv using file_body		= beast::http::file_body;
-
-		prv template <typename T> using vector_body	= beast::http::vector_body<T>;
-		prv using any_stream = std::variant<std::monostate, tcp_stream, ssl_stream>;
-
-		prv template <typename T> class response_parser: public beast::http::response_parser<T>
-		{
-			pbl response_parser() { this->body_limit(boost::none); }
-			pbl auto message() -> beast::http::response<T> & { return this->get(); }
-		};
-
-		prv template <typename T> class request_serializer: public beast::http::request_serializer<T>
-		{
-			prv beast::http::request<T> msg;
-			pbl request_serializer(auto... args): msg(std::forward<decltype(args)>(args)...), beast::http::request_serializer<T>(msg) {}
-			pbl auto message() -> beast::http::request<T> & { return msg; }
-		};
+		prv using tcp_stream = asio::ip::tcp::socket;
+		prv using ssl_stream = asio::ssl::stream<asio::ip::tcp::socket>;
 
 		prv class stage_read
 		{
@@ -388,8 +368,7 @@ namespace io::http
 			pbl stage_write(beast::http::request_header<> && header): request(std::move(header)), serializer(request) {}
 		};
 
-		prv any_stream stream;
-		prv std::optional<request_serializer<buffer_body>> serializer;
+		prv std::variant<std::monostate, tcp_stream, ssl_stream> stream;
 		prv std::variant<std::monostate, stage_read, stage_write> stage;
 
 		pbl auto connect(io::url url) -> io::coro<void>
