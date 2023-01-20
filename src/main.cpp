@@ -17,7 +17,9 @@ auto coro() -> io::coro<void>
 	io::http::client client;
 	co_await client.connect("https://httpbin.org");
 
-	io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "body"};
+	io::file file {"1.txt", io::file::mode::read};
+
+	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
 	co_await client.write(request);
 
 	io::http::response<std::string> response;
@@ -27,22 +29,10 @@ auto coro() -> io::coro<void>
 
 int main() try
 {
-	io::file file {"1.txt", io::file::mode::read};
-
-	// char buf[] = "sasihui";
-	// file.write(buf, 7);
-
-	std::string str;
-	str.resize(7);
-	file.read(str.data(), 7);
-	std::cout << str << '\n';
-
-	return 0;
-
-	// io::windows::set_asio_locale(io::windows::lang::english);
-	// asio::io_context ctx;
-	// asio::co_spawn(ctx, coro(), io::rethrowed);
-	// return ctx.run();
+	io::windows::set_asio_locale(io::windows::lang::english);
+	asio::io_context ctx;
+	asio::co_spawn(ctx, coro(), io::rethrowed);
+	return ctx.run();
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
 catch(...) { fmt::print("Exception: 'unknown'.\n"); }

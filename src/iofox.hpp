@@ -139,8 +139,6 @@ namespace io
 	// Basic file object.
 	class file: public beast::file
 	{
-		pbl file() = default;
-
 		pbl using mode = beast::file_mode;
 
 		pbl using beast::file::open;
@@ -150,11 +148,6 @@ namespace io
 		pbl using beast::file::seek;
 		pbl using beast::file::close;
 		pbl using beast::file::native_handle;
-
-		pbl void operator=(beast::file && other)
-		{
-			beast::file::operator=(std::move(other));
-		}
 
 		pbl auto open(const char * path, io::file::mode mode)
 		{
@@ -198,10 +191,9 @@ namespace io
 			if(ec) throw std::system_error(ec);
 		}
 
-		pbl file(const char * path, io::file::mode mode)
-		{
-			open(path, mode);
-		}
+		pbl file() = default;
+		pbl file(beast::file && file): beast::file(std::move(file)) {}
+		pbl file(const char * path, io::file::mode mode) { open(path, mode); }
 	};
 }
 
@@ -489,6 +481,28 @@ namespace io::http
 		pbl auto write_body(std::string & body) -> io::coro<void>
 		{
 			co_await write_body_octets(body.data(), body.size(), true);
+		}
+
+		pbl auto write_body(io::file & body) -> io::coro<void>
+		{
+			for(char buf[4096]; auto octets_readed = body.read(buf, 4096);)
+			{
+				co_await write_body_octets(buf, octets_readed, (octets_readed < 4096) ? true : false);
+			}
+		}
+
+		pbl auto write_body(beast::file & body) -> io::coro<void>
+		{
+			io::file file {std::move(body)};
+			co_await write_body(file);
+			body = std::move(file);
+		}
+
+		pbl auto write_body(beast::http::file_body::value_type & body) -> io::coro<void>
+		{
+			io::file file {std::move(body.file())};
+			co_await write_body(file);
+			body.file() = std::move(file);
 		}
 
 		pbl auto write(auto & request) -> io::coro<void>
