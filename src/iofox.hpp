@@ -13,6 +13,7 @@
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file.hpp>
+#include <boost/beast/core/file_base.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/chunk_encode.hpp>
 #include <boost/beast/http/empty_body.hpp>
@@ -140,16 +141,66 @@ namespace io
 	{
 		pbl file() = default;
 
+		pbl using mode = beast::file_mode;
+
+		pbl using beast::file::open;
+		pbl using beast::file::write;
+		pbl using beast::file::read;
+		pbl using beast::file::pos;
+		pbl using beast::file::seek;
+		pbl using beast::file::close;
+		pbl using beast::file::native_handle;
+
 		pbl void operator=(beast::file && other)
 		{
 			beast::file::operator=(std::move(other));
 		}
 
-		pbl file(const char * path, beast::file_mode mode = beast::file_mode::write)
+		pbl auto open(const char * path, io::file::mode mode)
 		{
-			beast::error_code e;
-			open(path, mode, e);
-			if(e) throw std::system_error(e);
+			beast::error_code ec;
+			beast::file::open(path, mode, ec);
+			if(ec) throw std::system_error(ec);
+		}
+
+		pbl auto write(const void * buffer, std::size_t size) -> std::size_t
+		{
+			beast::error_code ec;
+			auto ret = beast::file::write(buffer, size, ec);
+			if(ec) throw std::system_error(ec); else return ret;
+		}
+
+		pbl auto read(void * buffer, std::size_t size) -> std::size_t
+		{
+			beast::error_code ec;
+			auto ret = beast::file::read(buffer, size, ec);
+			if(ec) throw std::system_error(ec); else return ret;
+		}
+
+		pbl auto pos() -> std::uint64_t
+		{
+			beast::error_code ec;
+			auto ret = beast::file::pos(ec);
+			if(ec) throw std::system_error(ec); else return ret;
+		}
+
+		pbl void seek(std::uint64_t offset)
+		{
+			beast::error_code ec;
+			beast::file::seek(offset, ec);
+			if(ec) throw std::system_error(ec);
+		}
+
+		pbl void close()
+		{
+			beast::error_code ec;
+			beast::file::close(ec);
+			if(ec) throw std::system_error(ec);
+		}
+
+		pbl file(const char * path, io::file::mode mode)
+		{
+			open(path, mode);
 		}
 	};
 }

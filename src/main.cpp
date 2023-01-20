@@ -27,10 +27,22 @@ auto coro() -> io::coro<void>
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	io::file file {"1.txt", io::file::mode::read};
+
+	// char buf[] = "sasihui";
+	// file.write(buf, 7);
+
+	std::string str;
+	str.resize(7);
+	file.read(str.data(), 7);
+	std::cout << str << '\n';
+
+	return 0;
+
+	// io::windows::set_asio_locale(io::windows::lang::english);
+	// asio::io_context ctx;
+	// asio::co_spawn(ctx, coro(), io::rethrowed);
+	// return ctx.run();
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
 catch(...) { fmt::print("Exception: 'unknown'.\n"); }
