@@ -19,7 +19,10 @@ auto coro() -> io::coro<void>
 
 	io::file file {"1.txt", io::file::mode::read};
 
-	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
+	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "123456789"};
+	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "6"}}, "123456789"};
+	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "20"}}, std::move(file)};
+	// io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
 	co_await client.write(request);
 
 	io::http::response<std::string> response;
