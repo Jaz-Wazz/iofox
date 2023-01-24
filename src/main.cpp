@@ -19,16 +19,15 @@ auto coro() -> io::coro<void>
 
 	io::file file {"1.txt", io::file::mode::read};
 
-	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "123456789"};
-	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "6"}}, "123456789"};
-	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "20"}}, std::move(file)};
-	// io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
+	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "4"}}, "qwertyuiop"};
+	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "qwertyuiop"};
+	// io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "6"}}, std::move(file)};
+	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
 	co_await client.write(request);
 
-	io::file file_x {"2.txt", io::file::mode::write};
-	io::http::response<io::file> response {200, {}, std::move(file_x)};
+	io::http::response<std::string> response;
 	co_await client.read(response);
-	// std::cout << response << '\n';
+	std::cout << response << '\n';
 }
 
 int main() try
