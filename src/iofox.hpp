@@ -532,6 +532,8 @@ namespace io::http
 			body.file() = std::move(file);
 		}
 
+		pbl auto write_body(beast::http::empty_body::value_type & empty_body) -> io::coro<void> { co_return; }
+
 		pbl auto write(auto & request) -> io::coro<void>
 		{
 			co_await write_header(request.base());
@@ -617,6 +619,8 @@ namespace io::http
 			co_await read_body(inst);
 			file_body.file() = std::move(inst);
 		}
+
+		pbl auto read_body(beast::http::empty_body::value_type & empty_body) -> io::coro<void> { co_return; }
 
 		pbl auto read(auto & response) -> io::coro<void>
 		{

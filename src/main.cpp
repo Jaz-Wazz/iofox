@@ -17,12 +17,7 @@ auto coro() -> io::coro<void>
 	io::http::client client;
 	co_await client.connect("https://httpbin.org");
 
-	io::file file {"1.txt", io::file::mode::read};
-
-	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "4"}}, "qwertyuiop"};
-	// io::http::request<std::string> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, "qwertyuiop"};
-	// io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "6"}}, std::move(file)};
-	io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
+	io::http::request request {"GET", "/get", {{"host", "httpbin.org"}}};
 	co_await client.write(request);
 
 	io::http::response<std::string> response;
