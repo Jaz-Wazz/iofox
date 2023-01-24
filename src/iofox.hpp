@@ -601,25 +601,7 @@ namespace io::http
 
 		pbl auto read_body(io::file & file) -> io::coro<void>
 		{
-			co_await std::visit(meta::overloaded
-			{
-				[&](stage_read & stage) -> io::coro<void>
-				{
-					if(auto rem_size = stage.parser.content_length_remaining())
-					{
-						for(char buf[4096]; auto readed = co_await read_body_octets(buf, (*rem_size < 4096) ? *rem_size : 4096);)
-						{
-							co_await file.write(buf, *readed);
-						}
-					}
-					if(stage.parser.chunked())
-					{
-						for(char buf[4096]; auto readed = co_await read_body_octets(buf, 4096);) co_await file.write(buf, *readed);
-					}
-					co_return;
-				},
-				[](auto && ...) -> io::coro<void> { co_return; }
-			}, stage);
+			for(char buf[4096]; auto readed = co_await read_body_octets(buf, 4096);) co_await file.write(buf, *readed);
 		}
 
 		pbl auto read_body(beast::file & file) -> io::coro<void>
