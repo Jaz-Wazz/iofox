@@ -599,6 +599,43 @@ namespace io::http
 			}, stage);
 		}
 
+		pbl auto read_body(io::file & file) -> io::coro<void>
+		{
+			co_await std::visit(meta::overloaded
+			{
+				[&](stage_read & stage) -> io::coro<void>
+				{
+					if(auto rem_size = stage.parser.content_length_remaining())
+					{
+						for(char buf[4096]; auto readed = co_await read_body_octets(buf, (*rem_size < 4096) ? *rem_size : 4096);)
+						{
+							co_await file.write(buf, *readed);
+						}
+					}
+					if(stage.parser.chunked())
+					{
+						for(char buf[4096]; auto readed = co_await read_body_octets(buf, 4096);) co_await file.write(buf, *readed);
+					}
+					co_return;
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stage);
+		}
+
+		pbl auto read_body(beast::file & file) -> io::coro<void>
+		{
+			io::file inst {std::move(file)};
+			co_await read_body(inst);
+			file = std::move(inst);
+		}
+
+		pbl auto read_body(beast::http::file_body::value_type & file_body) -> io::coro<void>
+		{
+			io::file inst {std::move(file_body.file())};
+			co_await read_body(inst);
+			file_body.file() = std::move(inst);
+		}
+
 		pbl auto read(auto & response) -> io::coro<void>
 		{
 			co_await read_header(response.base());

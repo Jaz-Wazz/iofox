@@ -25,9 +25,10 @@ auto coro() -> io::coro<void>
 	// io::http::request<io::file> request {"POST", "/post", {{"host", "httpbin.org"}, {"transfer-encoding", "chunked"}}, std::move(file)};
 	co_await client.write(request);
 
-	io::http::response<std::string> response;
+	io::file file_x {"2.txt", io::file::mode::write};
+	io::http::response<io::file> response {200, {}, std::move(file_x)};
 	co_await client.read(response);
-	std::cout << response << '\n';
+	// std::cout << response << '\n';
 }
 
 int main() try
