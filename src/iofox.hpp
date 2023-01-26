@@ -710,6 +710,32 @@ namespace io::http
 			}, stream);
 		}
 	};
+
+	template <typename T = std::string>
+	inline auto send(std::string method, io::url url, std::initializer_list<std::pair<std::string, std::string>> headers = {})
+	-> io::coro<io::http::response<T>>
+	{
+		io::http::client client;
+		co_await client.connect(url);
+		io::http::request request {method, url.serialize_location(), headers};
+		co_await client.write(request);
+		io::http::response<T> response;
+		co_await client.read(response);
+		co_return response;
+	}
+
+	template <typename T = std::string>
+	inline auto send(std::string method, io::url url, std::initializer_list<std::pair<std::string, std::string>> headers, const std::string & body)
+	-> io::coro<io::http::response<T>>
+	{
+		io::http::client client;
+		co_await client.connect(url);
+		io::http::request<std::string> request {method, url.serialize_location(), headers, body};
+		co_await client.write(request);
+		io::http::response<T> response;
+		co_await client.read(response);
+		co_return response;
+	}
 };
 
 #undef asio
