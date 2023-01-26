@@ -555,11 +555,11 @@ namespace io::http
 			}, stream, stage);
 		}
 
-		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::optional<std::size_t>>
+		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::size_t>
 		{
 			co_return co_await std::visit(meta::overloaded
 			{
-				[&](meta::available auto & stream, stage_read & stage) -> io::coro<std::optional<std::size_t>>
+				[&](meta::available auto & stream, stage_read & stage) -> io::coro<std::size_t>
 				{
 					if(!stage.parser.is_done())
 					{
@@ -568,9 +568,9 @@ namespace io::http
 						auto [err, bytes_readed] = co_await beast::http::async_read(stream, stage.buffer, stage.parser, io::use_coro_tuple);
 						if(err.failed() && err != beast::http::error::need_buffer) throw std::system_error(err);
 						co_return size - stage.parser.get().body().size;
-					} else co_return std::nullopt;
+					} else co_return 0;
 				},
-				[](auto && ...) -> io::coro<std::optional<std::size_t>> { co_return std::nullopt; },
+				[](auto && ...) -> io::coro<std::size_t> { co_return 0; },
 			}, stream, stage);
 		}
 
@@ -584,7 +584,7 @@ namespace io::http
 					{
 						body.resize_and_overwrite(*content_length, [&](auto...) { return *content_length; });
 						auto octets_readed = co_await read_body_octets(body.data(), *content_length);
-						body.resize(octets_readed.value_or(0));
+						body.resize(octets_readed);
 					}
 					if(stage.parser.chunked())
 					{
@@ -592,7 +592,7 @@ namespace io::http
 						{
 							body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
 							auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
-							if(octets_readed.value_or(0) < 1024) { body.resize(i + octets_readed.value_or(0)); break; }
+							if(octets_readed < 1024) { body.resize(i + octets_readed); break; }
 						}
 					}
 					co_return;
@@ -603,7 +603,7 @@ namespace io::http
 
 		pbl auto read_body(io::file & file) -> io::coro<void>
 		{
-			for(char buf[4096]; auto readed = co_await read_body_octets(buf, 4096);) co_await file.write(buf, *readed);
+			for(char buf[4096]; auto readed = co_await read_body_octets(buf, 4096);) co_await file.write(buf, readed);
 		}
 
 		pbl auto read_body(beast::file & file) -> io::coro<void>
