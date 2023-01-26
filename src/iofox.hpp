@@ -424,8 +424,15 @@ namespace io::http
 			pbl stage_write(beast::http::request_header<> && header): request(std::move(header)), serializer(request) {}
 		};
 
+		prv class stage_connect
+		{
+			pbl io::url url;
+			pbl stage_connect(io::url && url): url(std::move(url)) {}
+		};
+
 		prv std::variant<std::monostate, tcp_stream, ssl_stream> stream;
-		prv std::variant<std::monostate, stage_read, stage_write> stage;
+		prv std::variant<std::monostate, stage_read, stage_write, stage_connect> stage;
+		pbl bool auto_host = true;
 
 		pbl auto connect(io::url url) -> io::coro<void>
 		{
@@ -435,6 +442,7 @@ namespace io::http
 				auto ips = co_await io::dns::resolve("http", url.host);
 				co_await asio::async_connect(stream, ips, io::use_coro);
 				this->stream = std::move(stream);
+				stage.emplace<stage_connect>(std::move(url));
 			}
 			if(url.protocol == "https")
 			{
@@ -444,11 +452,13 @@ namespace io::http
 				io::ssl::set_tls_extension_hostname(stream, url.host);
 				co_await stream.async_handshake(stream.client, io::use_coro);
 				this->stream = std::move(stream);
+				stage.emplace<stage_connect>(std::move(url));
 			}
 		}
 
 		pbl auto write_header(auto & request_header) -> io::coro<void>
 		{
+			if(auto_host && request_header["host"].empty()) request_header.set("host", std::get<stage_connect>(stage).url.host);
 			stage.emplace<stage_write>(std::move(request_header));
 
 			co_await std::visit(meta::overloaded

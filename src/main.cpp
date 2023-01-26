@@ -17,7 +17,7 @@ auto coro() -> io::coro<void>
 	io::http::client client;
 	co_await client.connect("https://httpbin.org");
 
-	io::http::request<std::vector<char>> request {"POST", "/post", {{"host", "httpbin.org"}, {"content-length", "4"}}, {'b', 'o', 'd', 'y'}};
+	io::http::request<std::vector<char>> request {"POST", "/post", {{"content-length", "4"}}, {'b', 'o', 'd', 'y'}};
 	co_await client.write(request);
 
 	io::http::response<std::vector<char>> response;
