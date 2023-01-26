@@ -509,6 +509,11 @@ namespace io::http
 			co_await write_body_octets(string.data(), string.size(), true);
 		}
 
+		pbl auto write_body(meta::vector_one_byte auto & vector) -> io::coro<void>
+		{
+			co_await write_body_octets(vector.data(), vector.size(), true);
+		}
+
 		pbl auto write_body(io::file & file) -> io::coro<void>
 		{
 			for(char buf[4096]; auto readed = file.read(buf, 4096);)
@@ -593,6 +598,33 @@ namespace io::http
 							body.resize_and_overwrite(i + 1024, [&](auto...) { return i + 1024; });
 							auto octets_readed = co_await read_body_octets(body.data() + i, 1024);
 							if(octets_readed < 1024) { body.resize(i + octets_readed); break; }
+						}
+					}
+					co_return;
+				},
+				[](auto && ...) -> io::coro<void> { co_return; }
+			}, stage);
+		}
+
+		pbl auto read_body(meta::vector_one_byte auto & vector) -> io::coro<void>
+		{
+			co_await std::visit(meta::overloaded
+			{
+				[&](stage_read & stage) -> io::coro<void>
+				{
+					if(auto content_length = stage.parser.content_length())
+					{
+						vector.resize(*content_length);
+						auto readed = co_await read_body_octets(vector.data(), *content_length);
+						vector.resize(readed);
+					}
+					if(stage.parser.chunked())
+					{
+						for(int i = 0; true; i += 1024)
+						{
+							vector.resize(i + 1024);
+							auto readed = co_await read_body_octets(vector.data() + i, 1024);
+							if(readed < 1024) { vector.resize(i + readed); break; }
 						}
 					}
 					co_return;
