@@ -384,6 +384,8 @@ namespace io::http
 			this->target(target);
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
+
+		pbl request_header(beast::http::request_header<> && header): base(std::move(header)) {}
 	};
 
 	// Basic response header object.
@@ -400,6 +402,8 @@ namespace io::http
 			this->result(result);
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
+
+		pbl response_header(beast::http::response_header<> && header): base(std::move(header)) {}
 	};
 
 	// Basic high-level http/https client.
@@ -456,10 +460,10 @@ namespace io::http
 			}
 		}
 
-		pbl auto write_header(auto & request_header) -> io::coro<void>
+		pbl auto write_header(io::http::request_header & header) -> io::coro<void>
 		{
-			if(auto_host && request_header["host"].empty()) request_header.set("host", std::get<stage_connect>(stage).url.host);
-			stage.emplace<stage_write>(std::move(request_header));
+			if(auto_host && header["host"].empty()) header.set("host", std::get<stage_connect>(stage).url.host);
+			stage.emplace<stage_write>(std::move(header));
 
 			co_await std::visit(meta::overloaded
 			{
@@ -468,10 +472,17 @@ namespace io::http
 					co_await beast::http::async_write_header(stream, stage.serializer, io::use_coro);
 					stage.content_length = stage.request.has_content_length() ? std::stoll(stage.request["content-length"].to_string()) : 0;
 					stage.chunked = stage.request.chunked();
-					request_header = std::move(stage.request.base());
+					header = std::move(stage.request.base());
 				},
 				[](auto && ...) -> io::coro<void> { co_return; }
 			}, stream, stage);
+		}
+
+		pbl auto write_header(beast::http::request_header<> & header) -> io::coro<void>
+		{
+			io::http::request_header inst {std::move(header)};
+			co_await write_header(inst);
+			header = std::move(inst);
 		}
 
 		pbl auto write_body_octets(const char * buffer, std::size_t size, bool last_buffer = false) -> io::coro<std::size_t>
@@ -555,19 +566,26 @@ namespace io::http
 			co_await write_body(request.body());
 		}
 
-		pbl auto read_header(auto & response_header) -> io::coro<void>
+		pbl auto read_header(io::http::response_header & header) -> io::coro<void>
 		{
-			stage.emplace<stage_read>(std::move(response_header));
+			stage.emplace<stage_read>(std::move(header));
 
 			co_await std::visit(meta::overloaded
 			{
 				[&](meta::available auto & stream, stage_read & stage) -> io::coro<void>
 				{
 					co_await beast::http::async_read_header(stream, stage.buffer, stage.parser, io::use_coro);
-					response_header = std::move(stage.parser.get().base());
+					header = std::move(stage.parser.get().base());
 				},
 				[](auto && ...) -> io::coro<void> { co_return; }
 			}, stream, stage);
+		}
+
+		pbl auto read_header(beast::http::response_header<> & header) -> io::coro<void>
+		{
+			io::http::response_header inst {std::move(header)};
+			co_await read_header(inst);
+			header = std::move(inst);
 		}
 
 		pbl auto read_body_octets(char * buffer, std::size_t size) -> io::coro<std::size_t>
