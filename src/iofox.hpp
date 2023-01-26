@@ -560,7 +560,13 @@ namespace io::http
 
 		pbl auto write_body(beast::http::empty_body::value_type & empty_body) -> io::coro<void> { co_return; }
 
-		pbl auto write(auto & request) -> io::coro<void>
+		pbl template <typename T> auto write(io::http::request<T> & request) -> io::coro<void>
+		{
+			co_await write_header(request.base());
+			co_await write_body(request.body());
+		}
+
+		pbl template <typename T> auto write(beast::http::request<T> & request) -> io::coro<void>
 		{
 			co_await write_header(request.base());
 			co_await write_body(request.body());
@@ -682,7 +688,13 @@ namespace io::http
 
 		pbl auto read_body(beast::http::empty_body::value_type & empty_body) -> io::coro<void> { co_return; }
 
-		pbl auto read(auto & response) -> io::coro<void>
+		pbl template <typename T> auto read(io::http::response<T> & response) -> io::coro<void>
+		{
+			co_await read_header(response.base());
+			co_await read_body(response.body());
+		}
+
+		pbl template <typename T> auto read(beast::http::response<T> & response) -> io::coro<void>
 		{
 			co_await read_header(response.base());
 			co_await read_body(response.body());
