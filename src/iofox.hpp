@@ -462,7 +462,13 @@ namespace io::http
 
 		pbl auto write_header(io::http::request_header & header) -> io::coro<void>
 		{
-			if(auto_host && header["host"].empty()) header.set("host", std::get<stage_connect>(stage).url.host);
+			if(auto_host && header["Host"].empty())
+			{
+				io::http::request_header temp_header {header.method_string().to_string(), header.target().to_string()};
+				temp_header.set("Host", std::get<stage_connect>(stage).url.host);
+				for(auto & el : header) temp_header.insert(el.name_string(), el.value());
+				header = std::move(temp_header);
+			}
 			stage.emplace<stage_write>(std::move(header));
 
 			co_await std::visit(meta::overloaded
