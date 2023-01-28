@@ -737,6 +737,7 @@ namespace io::http
 		io::http::client client;
 		co_await client.connect(url);
 		io::http::request<std::string> request {method, url.serialize_location(), headers, body};
+		request.prepare_payload();
 		co_await client.write(request);
 		io::http::response<T> response;
 		co_await client.read(response);
