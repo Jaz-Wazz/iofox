@@ -218,7 +218,7 @@ namespace io
 	{
 		friend io::subscriber_channel<T>;
 		prv std::set<subscriber_channel<T> *> subscribers;
-		pbl auto send(T i) -> io::coro<void>;
+		pbl auto send(const T & i) -> io::coro<void>;
 		pbl ~broadcast_channel();
 	};
 
@@ -241,7 +241,7 @@ namespace io
 	};
 
 	template <typename T>
-	inline auto broadcast_channel<T>::send(T i) -> io::coro<void>
+	inline auto broadcast_channel<T>::send(const T & i) -> io::coro<void>
 	{
 		for(auto chan : subscribers) co_await chan->async_send({}, i, io::use_coro);
 	}
