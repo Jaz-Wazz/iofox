@@ -17,7 +17,7 @@ namespace http = beast::http;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
 asio::io_context ctx;
-std::vector<asio::experimental::channel<void(boost::system::error_code, int)> *> vector;
+io::broadcast_channel channel;
 
 auto produser() -> io::coro<void>
 {
@@ -25,17 +25,16 @@ auto produser() -> io::coro<void>
 	{
 		co_await asio::steady_timer(ctx, std::chrono::seconds(1)).async_wait(io::use_coro);
 		fmt::print("[produser] - send: '{}'.\n", i);
-		for(auto el : vector) co_await el->async_send({}, i, io::use_coro);
+		co_await channel.send(i);
 	}
 }
 
 auto consumer(char c) -> io::coro<void>
 {
-	asio::experimental::channel<void(boost::system::error_code, int)> chan {ctx};
-	vector.emplace_back(&chan);
+	io::subscriber_channel sub_channel {channel, co_await this_coro::executor};
 	for(;;)
 	{
-		int x = co_await chan.async_receive(io::use_coro);
+		int x = co_await sub_channel.async_receive(io::use_coro);
 		fmt::print("[consumer '{}'] - recieve: '{}'.\n", c, x);
 	}
 }

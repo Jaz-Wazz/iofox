@@ -10,6 +10,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file.hpp>
@@ -27,6 +28,7 @@
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <concepts>
 #include <cstdint>
 #include <initializer_list>
@@ -40,6 +42,7 @@
 #include <string>
 #include <variant>
 #include <utility>
+#include <set>
 #include <winnt.h>
 
 #define asio		boost::asio
@@ -203,6 +206,43 @@ namespace io
 		pbl file(beast::file && file): beast::file(std::move(file)) {}
 		pbl file(const char * path, io::file::mode mode) { open(path, mode); }
 	};
+
+	class subscriber_channel;
+
+	class broadcast_channel
+	{
+		friend io::subscriber_channel;
+		prv std::set<subscriber_channel *> subscribers;
+		pbl auto send(int i) -> io::coro<void>;
+		pbl ~broadcast_channel();
+	};
+
+	class subscriber_channel: public asio::experimental::channel<void(boost::system::error_code, int)>
+	{
+		friend io::broadcast_channel;
+		prv io::broadcast_channel * broadcast_channel;
+
+		pbl subscriber_channel(io::broadcast_channel & broadcast_channel, const asio::any_io_executor & executor)
+		: broadcast_channel(&broadcast_channel), asio::experimental::channel<void(boost::system::error_code, int)>(executor)
+		{
+			broadcast_channel.subscribers.insert(this);
+		}
+
+		pbl ~subscriber_channel()
+		{
+			if(broadcast_channel != nullptr) broadcast_channel->subscribers.erase(this);
+		}
+	};
+
+	inline auto broadcast_channel::send(int i) -> io::coro<void>
+	{
+		for(auto chan : subscribers) co_await chan->async_send({}, i, io::use_coro);
+	}
+
+	inline broadcast_channel::~broadcast_channel()
+	{
+		for(auto chan : subscribers) chan->broadcast_channel = nullptr;
+	}
 }
 
 namespace io::dns
