@@ -207,23 +207,29 @@ namespace io
 		pbl file(const char * path, io::file::mode mode) { open(path, mode); }
 	};
 
+	template <typename T>
+	using channel = asio::experimental::channel<void(boost::system::error_code, T)>;
+
+	template <typename T>
 	class subscriber_channel;
 
+	template <typename T>
 	class broadcast_channel
 	{
-		friend io::subscriber_channel;
-		prv std::set<subscriber_channel *> subscribers;
-		pbl auto send(int i) -> io::coro<void>;
+		friend io::subscriber_channel<T>;
+		prv std::set<subscriber_channel<T> *> subscribers;
+		pbl auto send(T i) -> io::coro<void>;
 		pbl ~broadcast_channel();
 	};
 
-	class subscriber_channel: public asio::experimental::channel<void(boost::system::error_code, int)>
+	template <typename T>
+	class subscriber_channel: public io::channel<T>
 	{
-		friend io::broadcast_channel;
-		prv io::broadcast_channel * broadcast_channel;
+		friend io::broadcast_channel<T>;
+		prv io::broadcast_channel<T> * broadcast_channel;
 
-		pbl subscriber_channel(io::broadcast_channel & broadcast_channel, const asio::any_io_executor & executor)
-		: broadcast_channel(&broadcast_channel), asio::experimental::channel<void(boost::system::error_code, int)>(executor)
+		pbl subscriber_channel(io::broadcast_channel<T> & broadcast_channel, const asio::any_io_executor & executor)
+		: broadcast_channel(&broadcast_channel), io::channel<T>(executor)
 		{
 			broadcast_channel.subscribers.insert(this);
 		}
@@ -234,12 +240,14 @@ namespace io
 		}
 	};
 
-	inline auto broadcast_channel::send(int i) -> io::coro<void>
+	template <typename T>
+	inline auto broadcast_channel<T>::send(T i) -> io::coro<void>
 	{
 		for(auto chan : subscribers) co_await chan->async_send({}, i, io::use_coro);
 	}
 
-	inline broadcast_channel::~broadcast_channel()
+	template <typename T>
+	inline broadcast_channel<T>::~broadcast_channel()
 	{
 		for(auto chan : subscribers) chan->broadcast_channel = nullptr;
 	}

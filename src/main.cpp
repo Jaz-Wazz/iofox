@@ -17,7 +17,7 @@ namespace http = beast::http;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
 asio::io_context ctx;
-io::broadcast_channel channel;
+io::broadcast_channel<std::string> channel;
 
 auto produser() -> io::coro<void>
 {
@@ -25,7 +25,7 @@ auto produser() -> io::coro<void>
 	{
 		co_await asio::steady_timer(ctx, std::chrono::seconds(1)).async_wait(io::use_coro);
 		fmt::print("[produser] - send: '{}'.\n", i);
-		co_await channel.send(i);
+		co_await channel.send(fmt::format("sas{}", i));
 	}
 }
 
@@ -34,7 +34,7 @@ auto consumer(char c) -> io::coro<void>
 	io::subscriber_channel sub_channel {channel, co_await this_coro::executor};
 	for(;;)
 	{
-		int x = co_await sub_channel.async_receive(io::use_coro);
+		std::string x = co_await sub_channel.async_receive(io::use_coro);
 		fmt::print("[consumer '{}'] - recieve: '{}'.\n", c, x);
 	}
 }
