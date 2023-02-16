@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace http_proto = boost::http_proto; // NOLINT.
 
@@ -20,9 +21,19 @@ int main() try
 	response.set("Paws", "4");
 
 	http_proto::serializer serializer;
-	std::string str = "sassisaininya";
-	http_proto::string_body sb {str};
-	serializer.start(response, sb);
+	auto stream = serializer.start_stream(response);
+
+	std::string str = "sas";
+
+	for(auto x : stream.prepare(3))
+	{
+		void * ptr = x.data();
+		char * char_ptr = static_cast<char *>(ptr);
+		char_ptr[0] = 'a';
+		char_ptr[1] = 'b';
+		char_ptr[2] = 'c';
+	}
+	stream.commit(3);
 
 	while(!serializer.is_done())
 	{
