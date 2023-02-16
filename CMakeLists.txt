@@ -9,9 +9,9 @@ set(LLVM_ENABLE_LTO "Thin")
 
 # Libs.
 find_package("Boost" REQUIRED "system" "json")
-find_package("fmt" CONFIG REQUIRED)
-find_package("OpenSSL" REQUIRED)
-find_package("uriparser" CONFIG REQUIRED)
+find_package("fmt" REQUIRED)
+find_package("boringssl" REQUIRED)
+find_package("uriparser" REQUIRED)
 
 # src.
 file(GLOB_RECURSE src "src/*")
@@ -20,5 +20,5 @@ file(GLOB_RECURSE src "src/*")
 add_executable("ia_proxy" ${src})
 target_include_directories("ia_proxy" PUBLIC "src")
 set_target_properties("ia_proxy" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-target_link_libraries("ia_proxy" PRIVATE Boost::system Boost::json fmt::fmt OpenSSL::SSL uriparser::uriparser)
+target_link_libraries("ia_proxy" PRIVATE Boost::system Boost::json fmt::fmt boringssl::ssl boringssl::crypto uriparser::uriparser)
 target_compile_definitions("ia_proxy" PRIVATE BOOST_ASIO_HAS_CO_AWAIT)
