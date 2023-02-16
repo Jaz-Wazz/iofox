@@ -1,29 +1,48 @@
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/this_coro.hpp>
+#include <boost/http_proto/request_parser.hpp>
+#include <boost/http_proto/request.hpp>
+#include <boost/http_proto/response.hpp>
+#include <boost/http_proto/serializer.hpp>
+#include <boost/http_proto/status.hpp>
+#include <exception>
 #include <fmt/core.h>
-#include <iofox.hpp>
 #include <iostream>
 #include <string>
-#include <vector>
 
-namespace asio = boost::asio;			// NOLINT.
-namespace beast = boost::beast;			// NOLINT.
-namespace http = beast::http;			// NOLINT.
-namespace this_coro = asio::this_coro;	// NOLINT.
-
-auto coro() -> io::coro<void>
-{
-	auto response = co_await io::http::send("POST", "https://httpbin.org/post", {{"transfer-encoding", "chunked"}}, "somebody");
-	std::cout << response << '\n';
-}
+namespace http_proto = boost::http_proto; // NOLINT.
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	http_proto::response response;
+	response.set_start_line(http_proto::status::ok);
+	response.set("Tails", "9");
+	response.set("Paws", "4");
+
+	http_proto::serializer serializer;
+	// serializer.start_stream(response);
+	// serializer.consume(10);
+	serializer.start(response);
+
+	// serializer.consume(5);
+
+	for(auto buffer : serializer.prepare().value())
+	{
+		fmt::print("---- DATA BLOCK ----\n{}\n", std::string(static_cast<const char *>(buffer.data()), buffer.size()));
+	}
+
+	// std::string request =
+	// "GET /path/to/sas.html HTTP/1.1\r\n"
+	// "Host: develop.http-proto.cpp.al\r\n"
+	// "User-Agent: sas\r\n"
+	// "\r\n";
+
+	// http_proto::request_parser parser;
+
+
+
+	fmt::print("sas.\n");
+	return 0;
 }
-catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
-catch(...) { fmt::print("Exception: 'unknown'.\n"); }
+catch(const std::exception & e)
+{
+	fmt::print("Exception: '{}'.\n", e.what());
+}
