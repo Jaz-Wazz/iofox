@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -28,6 +29,7 @@
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <concepts>
 #include <cstdint>
@@ -218,8 +220,11 @@ namespace io
 	{
 		friend io::subscriber_channel<T>;
 		prv std::set<subscriber_channel<T> *> subscribers;
+		prv asio::deadline_timer timer;
 		pbl auto send(const T & i) -> io::coro<void>;
+		prv typename std::set<subscriber_channel<T> *>::iterator it;
 		pbl ~broadcast_channel();
+		pbl broadcast_channel(auto & executor): timer(executor, boost::posix_time::pos_infin) {}
 	};
 
 	template <typename T>
@@ -232,18 +237,34 @@ namespace io
 		: broadcast_channel(&broadcast_channel), io::channel<T>(executor)
 		{
 			broadcast_channel.subscribers.insert(this);
+			broadcast_channel.timer.cancel();
 		}
 
 		pbl ~subscriber_channel()
 		{
-			if(broadcast_channel != nullptr) broadcast_channel->subscribers.erase(this);
+			if(broadcast_channel != nullptr)
+			{
+				for(void * ptr : broadcast_channel->subscribers) fmt::print("-[{}] ", ptr);
+				fmt::print("\n");
+				broadcast_channel->it = broadcast_channel->subscribers.erase(broadcast_channel->subscribers.find(this));
+				for(void * ptr : broadcast_channel->subscribers) fmt::print("[{}] ", ptr);
+				fmt::print("\n");
+			}
 		}
 	};
 
 	template <typename T>
 	inline auto broadcast_channel<T>::send(const T & i) -> io::coro<void>
 	{
-		for(auto chan : subscribers) co_await chan->async_send({}, i, io::use_coro);
+		if(subscribers.empty()) co_await timer.async_wait(io::use_coro_tuple);
+
+		for(this->it = subscribers.begin(); this->it != subscribers.end(); this->it++)
+		{
+			for(void * ptr : subscribers) fmt::print("{}, ", ptr);
+			fmt::print("\n");
+
+			co_await (*this->it)->async_send({}, i, io::use_coro);
+		}
 	}
 
 	template <typename T>
