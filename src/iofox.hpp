@@ -464,7 +464,7 @@ namespace io::http
 		{
 			if(auto_host && header["Host"].empty())
 			{
-				io::http::request_header temp_header {header.method_string().to_string(), header.target().to_string()};
+				io::http::request_header temp_header {header.method_string(), header.target()};
 				temp_header.set("Host", std::get<stage_connect>(stage).url.host);
 				for(auto & el : header) temp_header.insert(el.name_string(), el.value());
 				header = std::move(temp_header);
@@ -476,7 +476,7 @@ namespace io::http
 				[&](meta::available auto & stream, stage_write & stage) -> io::coro<void>
 				{
 					co_await beast::http::async_write_header(stream, stage.serializer, io::use_coro);
-					stage.content_length = stage.request.has_content_length() ? std::stoll(stage.request["content-length"].to_string()) : 0;
+					stage.content_length = stage.request.has_content_length() ? std::stoll(stage.request["content-length"]) : 0;
 					stage.chunked = stage.request.chunked();
 					header = std::move(stage.request.base());
 				},
