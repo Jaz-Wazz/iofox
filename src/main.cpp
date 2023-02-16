@@ -4,6 +4,7 @@
 #include <boost/http_proto/response.hpp>
 #include <boost/http_proto/serializer.hpp>
 #include <boost/http_proto/status.hpp>
+#include <boost/http_proto/string_body.hpp>
 #include <exception>
 #include <fmt/core.h>
 #include <iostream>
@@ -19,14 +20,16 @@ int main() try
 	response.set("Paws", "4");
 
 	http_proto::serializer serializer;
-	std::string str = "sas";
-	boost::buffers::const_buffer buf {str.data(), str.size()};
-	serializer.start(response, buf);
+	std::string str = "sassisaininya";
+	http_proto::string_body sb {str};
+	serializer.start(response, sb);
 
-	for(auto buffer : serializer.prepare().value())
+	while(!serializer.is_done())
 	{
-		fmt::print("---- DATA BLOCK ----\n{}\n", std::string(static_cast<const char *>(buffer.data()), buffer.size()));
-		serializer.consume(buffer.size());
+		auto it = serializer.prepare().value().begin();
+		auto size = (it->size() < 10) ? it->size() : 10;
+		fmt::print("---- DATA BLOCK ----\n{}\n", std::string(static_cast<const char *>(it->data()), size));
+		serializer.consume(size);
 	}
 
 	return 0;
