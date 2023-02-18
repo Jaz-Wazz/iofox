@@ -13,6 +13,15 @@
 
 namespace http_proto = boost::http_proto; // NOLINT.
 
+auto serialize(http_proto::response response) -> std::string
+{
+	std::string ret;
+	http_proto::serializer serializer;
+	serializer.start(response);
+	for(auto buffer : serializer.prepare().value()) ret.append(static_cast<const char *>(buffer.data()), buffer.size());
+	return ret;
+}
+
 int main() try
 {
 	http_proto::response response;
@@ -20,29 +29,8 @@ int main() try
 	response.set("Tails", "9");
 	response.set("Paws", "4");
 
-	http_proto::serializer serializer;
-	auto stream = serializer.start_stream(response);
-
-	std::string str = "sas";
-
-	for(auto x : stream.prepare(3))
-	{
-		void * ptr = x.data();
-		char * char_ptr = static_cast<char *>(ptr);
-		char_ptr[0] = 'a';
-		char_ptr[1] = 'b';
-		char_ptr[2] = 'c';
-	}
-	stream.commit(3);
-
-	while(!serializer.is_done())
-	{
-		auto it = serializer.prepare().value().begin();
-		auto size = (it->size() < 10) ? it->size() : 10;
-		fmt::print("---- DATA BLOCK ----\n{}\n", std::string(static_cast<const char *>(it->data()), size));
-		serializer.consume(size);
-	}
-
+	fmt::print("Response serialized:\n{}\n", serialize(response));
+	fmt::print("Response buffer:\n{}\n", response.buffer());
 	return 0;
 }
 catch(const std::exception & e)
