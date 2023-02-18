@@ -40,7 +40,7 @@ target_link_libraries("iofox" PRIVATE
 )
 
 # Add macros.
-target_compile_definitions("iofox" PRIVATE BOOST_ASIO_HAS_CO_AWAIT)
+target_compile_definitions("iofox" PRIVATE BOOST_ASIO_HAS_CO_AWAIT BOOST_ASIO_SEPARATE_COMPILATION)
 
 # Set msvc runtime library.
 set_target_properties("iofox" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
