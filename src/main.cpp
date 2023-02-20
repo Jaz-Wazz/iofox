@@ -1,70 +1,25 @@
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/read.hpp>
-#include <boost/asio/read_until.hpp>
-#include <boost/asio/streambuf.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/write.hpp>
-#include <boost/buffers/const_buffer.hpp>
-#include <boost/http_proto/request_parser.hpp>
-#include <boost/http_proto/request.hpp>
-#include <boost/http_proto/response.hpp>
-#include <boost/http_proto/serializer.hpp>
-#include <boost/http_proto/status.hpp>
-#include <boost/http_proto/string_body.hpp>
-#include <boost/http_proto/version.hpp>
-#include <exception>
 #include <fmt/core.h>
-#include <iostream>
+#include <ctype.h>
 #include <string>
-#include <vector>
-#include <iofox.hpp>
 
-namespace http_proto = boost::http_proto;	// NOLINT.
-namespace asio = boost::asio;				// NOLINT.
-namespace this_coro = asio::this_coro; 		// NOLINT.
-
-auto coro() -> io::coro<void>
+void hexdump(void * ptr, std::size_t size)
 {
-	asio::ip::tcp::socket sock {co_await this_coro::executor};
-	co_await asio::async_connect(sock, co_await io::dns::resolve("http", "exmaple.com"), io::use_coro);
-	fmt::print("connected.\n");
-
-	http_proto::request request;
-	request.set_start_line("GET", "/", http_proto::version::http_1_1);
-	request.set("Host", "exmaple.com");
-	request.set("Connection", "close");
-	fmt::print("request:\n{}\n", request.buffer());
-
-	auto ret = co_await asio::async_write(sock, asio::buffer(request.buffer()), io::use_coro);
-	fmt::print("writed: '{}'.\n", ret);
-
-	// std::string buf;
-	// buf.resize(100);
-	// co_await asio::async_read(sock, asio::buffer(buf), io::use_coro);
-	// fmt::print("readed:\n{}\n", buf);
-
-	// std::string buf;
-	// co_await asio::async_read(sock, asio::dynamic_buffer(buf), io::use_coro);
-	// fmt::print("readed:\n{}\n", buf);
-
-	std::string str;
-	co_await asio::async_read_until(sock, asio::dynamic_buffer(str), "\r\n", io::use_coro);
-	fmt::print("readed:\n{}\n", str);
-
-	std::string str2;
-	co_await asio::async_read_until(sock, asio::dynamic_buffer(str2), "\r\n", io::use_coro_tuple);
-	fmt::print("readed:\n{}\n", str2);
+	unsigned char * buf = static_cast<unsigned char *>(ptr);
+	for (int i = 0; i < size; i += 16)
+	{
+		fmt::print("{:06x}: ", i);
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:02x} ", buf[i + j]); else fmt::print("   ");
+		fmt::print(" ");
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:c}", isprint(buf[i + j]) ? buf[i + j] : '.');
+		fmt::print("\n");
+	}
 }
 
 int main() try
 {
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	std::string str = "fwewegwiohegwioefwaefh2t2h3or2u3ty92q3yh2q93uh2q3irg";
+	hexdump(str.data(), str.size());
+	return 0;
 }
 catch(const std::exception & e)
 {
