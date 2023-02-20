@@ -16,6 +16,7 @@
 #include <boost/http_proto/status.hpp>
 #include <boost/http_proto/string_body.hpp>
 #include <boost/http_proto/version.hpp>
+#include <ctype.h>
 #include <exception>
 #include <fmt/core.h>
 #include <iostream>
@@ -27,44 +28,35 @@ namespace http_proto = boost::http_proto;	// NOLINT.
 namespace asio = boost::asio;				// NOLINT.
 namespace this_coro = asio::this_coro; 		// NOLINT.
 
-auto coro() -> io::coro<void>
+void hexdump(const void * ptr, std::size_t size)
 {
-	asio::ip::tcp::socket sock {co_await this_coro::executor};
-	co_await asio::async_connect(sock, co_await io::dns::resolve("http", "exmaple.com"), io::use_coro);
-	fmt::print("connected.\n");
-
-	http_proto::request request;
-	request.set_start_line("GET", "/", http_proto::version::http_1_1);
-	request.set("Host", "exmaple.com");
-	request.set("Connection", "close");
-	fmt::print("request:\n{}\n", request.buffer());
-
-	auto ret = co_await asio::async_write(sock, asio::buffer(request.buffer()), io::use_coro);
-	fmt::print("writed: '{}'.\n", ret);
-
-	// std::string buf;
-	// buf.resize(100);
-	// co_await asio::async_read(sock, asio::buffer(buf), io::use_coro);
-	// fmt::print("readed:\n{}\n", buf);
-
-	// std::string buf;
-	// co_await asio::async_read(sock, asio::dynamic_buffer(buf), io::use_coro);
-	// fmt::print("readed:\n{}\n", buf);
-
-	std::string str;
-	co_await asio::async_read_until(sock, asio::dynamic_buffer(str), "\r\n", io::use_coro);
-	fmt::print("readed:\n{}\n", str);
-
-	std::string str2;
-	co_await asio::async_read_until(sock, asio::dynamic_buffer(str2), "\r\n", io::use_coro_tuple);
-	fmt::print("readed:\n{}\n", str2);
+	const unsigned char * buf = static_cast<const unsigned char *>(ptr);
+	for (int i = 0; i < size; i += 16)
+	{
+		fmt::print("{:06x}: ", i);
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:02x} ", buf[i + j]); else fmt::print("   ");
+		fmt::print(" ");
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:c}", isprint(buf[i + j]) ? buf[i + j] : '.');
+		fmt::print("\n");
+	}
 }
 
 int main() try
 {
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	http_proto::response response
+	{
+		"HTTP/1.1 200 OK\r\n"
+		"cache-control: private\r\n"
+		"content-type: text/html; charset=utf-8\r\n"
+		"strict-transport-security: max-age=15552000\r\n"
+		"x-frame-options: SAMEORIGIN\r\n"
+		"content-length: 8\r\n"
+		"\r\n"
+		"somebody"
+	};
+
+	hexdump(response.buffer().data(), response.buffer().size());
+	return 0;
 }
 catch(const std::exception & e)
 {
