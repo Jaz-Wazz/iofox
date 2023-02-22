@@ -10,6 +10,7 @@
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/buffers/buffer.hpp>
+#include <boost/buffers/buffered_base.hpp>
 #include <boost/buffers/circular_buffer.hpp>
 #include <boost/buffers/const_buffer.hpp>
 #include <boost/buffers/flat_buffer.hpp>
@@ -27,10 +28,13 @@
 #include <boost/http_proto/status.hpp>
 #include <boost/http_proto/string_body.hpp>
 #include <boost/http_proto/version.hpp>
+#include <cstring>
 #include <ctype.h>
 #include <exception>
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <iofox.hpp>
@@ -67,16 +71,23 @@ std::string data
 	"somebody"
 };
 
-void test_inherit_parser()
+void consume_to_parser(http_proto::response_parser & parser, std::string message)
 {
-	http_proto::response response {data};
-	hexdump(response.buffer().data(), response.buffer().size());
-};
+	if(auto buffer = *parser.prepare().begin(); buffer.data() != nullptr && buffer.end() != 0)
+	{
+		std::memcpy(buffer.data(), message.data(), message.size());
+		parser.commit(message.size());
+		fmt::print("[consumer] - write to buffer [ptr: {}, size: {}] -> data [size: {}].\n", buffer.data(), buffer.size(), message.size());
+	}
+}
 
-void test_inherit_parser_base()
+struct my_sink: boost::buffers::sink
 {
-	// http_proto::message_base response {http_proto::detail::kind::response, data};
-	// hexdump(response.buffer().data(), response.buffer().size());
+	boost::buffers::sink::results on_write(boost::buffers::const_buffer b, bool more)
+	{
+		fmt::print("sink.\n");
+		return {};
+	};
 };
 
 void some_tests()
@@ -84,35 +95,26 @@ void some_tests()
 	http_proto::response_parser parser;
 	parser.start();
 
-	for(auto buffer : parser.prepare())
-	{
-		fmt::print("[write buffer] - data: '{}', size: '{}'.\n", buffer.data(), buffer.size());
-		if(buffer.data() != nullptr && buffer.size() != 0)
-		{
-			for(int i = 0; i < data.size(); i++) static_cast<char *>(buffer.data())[i] = data[i];
-			parser.commit(data.size());
-		}
-	}
+	// boost::buffers::is_sink<boost::buffers::buffered_base>::value;
+	my_sink s;
+	parser.set_body(s);
+
+	consume_to_parser(parser, "HTTP/1.1 200 OK\r\n");
+	consume_to_parser(parser, "cache-control: private\r\n");
+	consume_to_parser(parser, "content-type: text/html\r\n");
+	consume_to_parser(parser, "Content-Length: 8\r\n");
+	consume_to_parser(parser, "\r\n");
+	consume_to_parser(parser, "1234");
+	consume_to_parser(parser, "5678");
 
 	http_proto::error_code ec;
 	parser.parse(ec);
-	fmt::print("Parse done: '{}', Is complited: '{}', Got header: '{}'.\n", ec.message(), parser.is_complete(), parser.got_header());
+	fmt::print("[parser] - parse, status: '{}', complited: '{}', got header: '{}'.\n", ec.message(), parser.is_complete(), parser.got_header());
 	if(!ec) fmt::print("Buffer: \n{}\n", parser.get().buffer());
 	if(!ec) fmt::print("Body: \n{}\n", parser.body());
 
-	for(auto buffer : parser.prepare())
-	{
-		std::string data = "1231231234243";
-		fmt::print("[write buffer] - data: '{}', size: '{}'.\n", buffer.data(), buffer.size());
-		if(buffer.data() != nullptr && buffer.size() != 0)
-		{
-			for(int i = 0; i < data.size(); i++) static_cast<char *>(buffer.data())[i] = data[i];
-			parser.commit(data.size());
-		}
-	}
-
 	parser.parse(ec);
-	fmt::print("Parse done: '{}', Is complited: '{}', Got header: '{}'.\n", ec.message(), parser.is_complete(), parser.got_header());
+	fmt::print("[parser] - parse, status: '{}', complited: '{}', got header: '{}'.\n", ec.message(), parser.is_complete(), parser.got_header());
 	if(!ec) fmt::print("Buffer: \n{}\n", parser.get().buffer());
 	if(!ec) fmt::print("Body: \n{}\n", parser.body());
 }
