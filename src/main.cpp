@@ -6,24 +6,32 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <picohttpparser.h>
 
 namespace asio = boost::asio;			// NOLINT.
 namespace beast = boost::beast;			// NOLINT.
 namespace http = beast::http;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto coro() -> io::coro<void>
-{
-	auto response = co_await io::http::send("POST", "https://httpbin.org/post", {{"transfer-encoding", "chunked"}}, "somebody");
-	std::cout << response << '\n';
-}
-
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	// Inputs.
+	char buf[4096];
+	size_t buflen = 4096, prevbuflen = 0;
+
+	// Outputs headers.
+	struct phr_header headers[100] {};
+	size_t num_headers = 100;
+	int minor_version = 0;
+
+	// Outputs.
+	const char *method, *path;
+	size_t method_len = 0, path_len = 0;
+
+	int pret = phr_parse_request(buf, buflen, &method, &method_len, &path, &path_len, &minor_version, headers, &num_headers, prevbuflen);
+	fmt::print("Ret: '{}'.\n", pret);
+
+	return 0;
 }
 catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
 catch(...) { fmt::print("Exception: 'unknown'.\n"); }
