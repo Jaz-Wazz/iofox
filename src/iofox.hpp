@@ -261,7 +261,9 @@ namespace io::meta
 	template <typename T> concept is_file_body = typeid(T) == typeid(beast::http::file_body);
 
 	// Concept check type is same std::vector<T> and sizeof(T) == 1 byte.
-	template <typename T> concept vector_one_byte = typeid(std::vector<typename T::value_type>) == typeid(T) && sizeof(T::value_type) == 1;
+	template <typename T>		struct is_vector					: std::false_type {};
+	template <typename... T>	struct is_vector<std::vector<T...>>	: std::true_type {};
+	template <typename T>		concept vector_one_byte = is_vector<T>::value && sizeof(T::value_type) == 1;
 
 	// Concept check type is io::file or beast::file.
 	template <typename T> concept any_file_type = typeid(T) == typeid(io::file) || typeid(T) == typeid(beast::file);
