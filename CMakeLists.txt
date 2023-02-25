@@ -41,6 +41,11 @@ target_link_libraries("iofox" PRIVATE
 # Add macros.
 target_compile_definitions("iofox" PRIVATE BOOST_ASIO_HAS_CO_AWAIT)
 
+# Setting minimal api version for windows.
+if(WIN32)
+	target_compile_definitions("iofox" PRIVATE _WIN32_WINNT=0x0601)
+endif()
+
 # Set msvc runtime library.
 set_target_properties("iofox" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
