@@ -15,24 +15,36 @@ namespace beast = boost::beast;			// NOLINT.
 namespace http = beast::http;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
+struct results
+{
+	std::string_view method;
+	std::string_view path;
+	int minor_version;
+	std::size_t num_headers;
+	int code;
+};
+
+results parse(const char * buffer, std::size_t size, phr_header * headers, std::size_t last_len)
+{
+	const char * method, * path;
+	size_t method_len, path_len, num_headers;
+	int minor_version;
+	auto ret = phr_parse_request(buffer, size, &method, &method_len, &path, &path_len, &minor_version, headers, &num_headers, last_len);
+	return {{method, method_len}, {path, path_len}, minor_version, num_headers, ret};
+}
+
 void test_request()
 {
-	const char * method;
-	size_t method_len;
-	const char * path;
-	size_t path_len;
-	int minor_version;
 	struct phr_header headers[4];
-	size_t num_headers;
 
 	const char * buf = "GET /page.sas HTTP/1.1\r\n";
-	int ret = phr_parse_request(buf, 26, &method, &method_len, &path, &path_len, &minor_version, headers, &num_headers, 0);
-	fmt::print("Return: '{}'.\n\n", ret);
 
-	fmt::print("Method: '{}'.\n", std::string(method, method_len));
-	fmt::print("Path: '{}'.\n", std::string(path, path_len));
-	fmt::print("Minor version: '{}'.\n", minor_version);
-	fmt::print("Headers count: '{}'.\n", num_headers);
+	auto ret = parse(buf, 17, headers, 0);
+	fmt::print("Return: '{}'.\n",			ret.code);
+	fmt::print("Method: '{}'.\n",			ret.method);
+	fmt::print("Path: '{}'.\n",				ret.path);
+	fmt::print("Minor version: '{}'.\n",	ret.minor_version);
+	fmt::print("Headers count: '{}'.\n\n",	ret.num_headers);
 }
 
 int main() try
