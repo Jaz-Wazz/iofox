@@ -24,6 +24,9 @@ void test_request()
 	parser.push("ox.ht");
 	parser.push("ml HTTP/");
 	parser.push("1.1\r\n");
+	parser.push("Host: exmaple.com\r\n");
+	parser.push("ears: 2\r\n");
+	parser.push("\r\n");
 
 	if(auto method = parser.method())
 	{
@@ -37,6 +40,7 @@ void test_request()
 	{
 		fmt::print("Version: '{}'.\n", version.value());
 	}
+	parser.print_headers();
 }
 
 int main() try
