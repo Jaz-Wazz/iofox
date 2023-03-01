@@ -3,6 +3,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <exception>
+#include <string>
 #include <winnls.h>
 #include <winnt.h>
 
@@ -46,7 +47,16 @@ namespace io::windows
 
 namespace io::http
 {
+	class start_line
+	{
+		pbl std::string method, path, version;
+		pbl start_line(std::string method, std::string path, std::string version): method(method), path(path), version(version) {}
+	};
 
+	inline auto read_start_line() -> io::coro<void>
+	{
+		co_return;
+	}
 };
 
 #undef asio

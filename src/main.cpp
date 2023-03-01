@@ -12,6 +12,9 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
+	io::http::start_line start_line {"GET", "/", "HTTP/1.0"};
+
+	co_await io::http::read_start_line();
 	fmt::print("test.\n");
 	co_return;
 }
