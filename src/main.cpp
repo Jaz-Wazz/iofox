@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <iofox.hpp>
+#include <iofox/iofox.hpp>
 
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
