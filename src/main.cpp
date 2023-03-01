@@ -2,20 +2,18 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <fmt/core.h>
-#include <iofox.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
+#include <iofox.hpp>
 
 namespace asio = boost::asio;			// NOLINT.
-namespace beast = boost::beast;			// NOLINT.
-namespace http = beast::http;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	auto response = co_await io::http::send("POST", "https://httpbin.org/post", {{"transfer-encoding", "chunked"}}, "somebody");
-	std::cout << response << '\n';
+	fmt::print("test.\n");
+	co_return;
 }
 
 int main() try
@@ -25,5 +23,7 @@ int main() try
 	asio::co_spawn(ctx, coro(), io::rethrowed);
 	return ctx.run();
 }
-catch(std::exception & e) { fmt::print("Exception: '{}'.\n", e.what()); }
-catch(...) { fmt::print("Exception: 'unknown'.\n"); }
+catch(const std::exception & e)
+{
+	fmt::print("Exception: '{}'.\n", e.what());
+}
