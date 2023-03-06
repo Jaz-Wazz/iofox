@@ -1,6 +1,8 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/asio/buffer.hpp>
+#include <cstring>
 #include <fmt/core.h>
 #include <iostream>
 #include <string>
@@ -12,11 +14,37 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	io::http::start_line start_line {"GET / HTTP/1.0\r\n"};
-	fmt::print("Method: '{}'.\n", start_line.method);
-	fmt::print("Path: '{}'.\n", start_line.path);
-	fmt::print("Version: '{}'.\n", start_line.version);
-	fmt::print("Serialized: '{}'.\n", start_line.serialize());
+	std::string str;
+	auto buffer = asio::dynamic_buffer(str);
+	fmt::print("String: '{}'.\n", str);
+
+	{
+		asio::mutable_buffer buf = buffer.prepare(5);
+		std::memcpy(buf.data(), "garox", 5);
+		fmt::print("String: '{}'.\n", str);
+	}
+	{
+		buffer.commit(5);
+		fmt::print("String: '{}'.\n", str);
+	}
+	{
+		asio::const_buffer buf = buffer.data();
+		fmt::print("Buffer data: '{}'.\n", std::string(static_cast<const char *>(buf.data()), buf.size()));
+		fmt::print("String: '{}'.\n", str);
+	}
+	{
+		buffer.grow(3);
+		// buffer.consume(3);
+		// buffer.shrink(3);
+		fmt::print("String: '{}'.\n", str);
+		asio::const_buffer buf = buffer.data();
+		fmt::print("Buffer data: '{}'.\n", std::string(static_cast<const char *>(buf.data()), buf.size()));
+	}
+
+
+	// fmt::print("Buffer data: '{}'.\n", std::string(buffer.data()));
+	// buffer.data()
+
 	co_return;
 }
 

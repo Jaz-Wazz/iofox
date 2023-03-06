@@ -55,6 +55,8 @@ namespace io::http
 	{
 		pbl std::string method, path, version;
 
+		pbl start_line() = default;
+
 		pbl start_line(std::string method, std::string path, std::string version = "HTTP/1.1")
 		: method(std::move(method)), path(std::move(path)), version(std::move(version)) {}
 
