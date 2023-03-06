@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <exception>
 #include <fmt/core.h>
@@ -57,50 +58,54 @@ namespace io::http
 
 		pbl start_line() = default;
 
-		pbl start_line(std::string method, std::string path, std::string version = "HTTP/1.1")
+		pbl start_line(std::string method, std::string path, std::string version)
 		: method(std::move(method)), path(std::move(path)), version(std::move(version)) {}
-
-		pbl start_line(std::string_view string)
-		{
-			const char *	method_data		= nullptr;
-			std::size_t		method_size		= 0;
-			const char *	path_data		= nullptr;
-			std::size_t		path_size		= 0;
-			int				minor_version	= -1;
-			std::size_t		headers_size	= 0;
-
-			int ret = phr_parse_request
-			(
-				string.data(),
-				string.size(),
-				&method_data,
-				&method_size,
-				&path_data,
-				&path_size,
-				&minor_version,
-				nullptr,
-				&headers_size,
-				0
-			);
-
-			if(ret == -2 && method_data != nullptr && path_data != nullptr && minor_version != -1)
-			{
-				method = {method_data, method_size};
-				path = {path_data, path_size};
-				version = (minor_version == 1) ? "HTTP/1.1" : "HTTP/1.0";
-			}
-			else throw std::runtime_error("io::http::start_line parse error");
-		}
-
-		pbl auto serialize() -> std::string
-		{
-			return fmt::format("{} {} {}", method, path, version);
-		}
 	};
 
-	inline auto read_start_line() -> io::coro<void>
+	using dynamic_string_buffer = asio::dynamic_string_buffer<char, std::char_traits<char>, std::allocator<char>>;
+
+	inline auto read_start_line(dynamic_string_buffer buffer) -> io::http::start_line
 	{
-		co_return;
+		asio::const_buffer read_buffer = buffer.data();
+		fmt::print("[read_start_line()] - Read buffer: '{}'.\n", std::string(static_cast<const char *>(read_buffer.data()), read_buffer.size()));
+
+		const char *	method_data		= nullptr;
+		std::size_t		method_size		= 0;
+		const char *	path_data		= nullptr;
+		std::size_t		path_size		= 0;
+		int				minor_version	= -1;
+		std::size_t		headers_size	= 0;
+
+		int ret = phr_parse_request
+		(
+			static_cast<const char *>(read_buffer.data()),
+			read_buffer.size(),
+			&method_data,
+			&method_size,
+			&path_data,
+			&path_size,
+			&minor_version,
+			nullptr,
+			&headers_size,
+			0
+		);
+
+		if(ret == -2 && method_data != nullptr && path_data != nullptr && minor_version != -1)
+		{
+			fmt::print
+			(
+				"[read_start_line()] - Object parsed: [Method: '{}', Path: '{}', Version: '{}'].\n",
+				std::string(method_data, method_size),
+				std::string(path_data, path_size),
+				(minor_version == 1) ? "HTTP/1.1" : "HTTP/1.0"
+			);
+		}
+		else
+		{
+			fmt::print("[read_start_line()] - Object incomplite, please consume data to buffer.\n");
+		}
+
+		return {"HUI", "/", "HTTP/1.0"};
 	}
 };
 
