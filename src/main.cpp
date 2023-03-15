@@ -1,5 +1,6 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/completion_condition.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/this_coro.hpp>
@@ -17,12 +18,10 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("Connected.\n");
 
-	char buffer[10] {};
-
-	for(;;)
+	for(std::string buffer;;)
 	{
-		std::size_t readed = co_await socket.async_read_some(asio::mutable_buffer(buffer, 10), io::use_coro);
-		fmt::print("Readed: {} octets: '{}'.\n", readed, std::string(buffer, readed));
+		std::size_t readed = co_await asio::async_read(socket, asio::dynamic_buffer(buffer), asio::transfer_at_least(1), io::use_coro);
+		fmt::print("Readed: {} octets: '{}'.\n", readed, buffer);
 	}
 
 	fmt::print("Disconnected.\n");
