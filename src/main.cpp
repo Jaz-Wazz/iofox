@@ -4,6 +4,7 @@
 #include <boost/asio/completion_condition.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/read_until.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <fmt/core.h>
 #include <iostream>
@@ -40,6 +41,12 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 		{
 			std::string buffer;
 			std::size_t readed = co_await asio::async_read(buffered_socket, asio::dynamic_buffer(buffer), asio::transfer_at_least(1), io::use_coro);
+			fmt::print("Readed: {} octets: '{}'.\n", readed, buffer);
+		}
+		if(cmd == "read_until")
+		{
+			std::string buffer;
+			std::size_t readed = co_await asio::async_read_until(buffered_socket, asio::dynamic_buffer(buffer), "0", io::use_coro);
 			fmt::print("Readed: {} octets: '{}'.\n", readed, buffer);
 		}
 	}
