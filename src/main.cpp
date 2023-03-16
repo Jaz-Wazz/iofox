@@ -10,6 +10,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 #include <iofox/iofox.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -18,35 +19,28 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
+class my_stream : private asio::ip::tcp::socket
+{
+	public: my_stream(asio::ip::tcp::socket && socket): asio::ip::tcp::socket(std::move(socket)) {}
+	public: auto get_executor() { return asio::ip::tcp::socket::get_executor(); }
+
+	public: auto async_read_some(const auto & buffers, auto && token)
+	{
+		return asio::ip::tcp::socket::async_read_some(buffers, std::move(token));
+	}
+};
+
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
+	my_stream my_stream {std::move(socket)};
 	fmt::print("Connected.\n");
-	std::string string;
-	auto dynamic_buffer = asio::dynamic_buffer(string);
-
-	for(std::string cmd; std::getline(std::cin, cmd);)
+	for(;;)
 	{
-		if(cmd == "read_until")
-		{
-			// Read.
-			std::size_t readed = co_await asio::async_read_until(socket, dynamic_buffer, "0", io::use_coro);
-			fmt::print("[read_until] - Readed target: '{}'.\n", readed);
-
-			// Analize.
-			asio::const_buffer buffer = dynamic_buffer.data();
-			fmt::print("[read_until] - Readed message by separator: '{}'.\n", std::string(static_cast<const char *>(buffer.data()), readed));
-
-			// Clear.
-			dynamic_buffer.consume(readed);
-		}
-		if(cmd == "show_buffer")
-		{
-			asio::const_buffer buffer = dynamic_buffer.data();
-			fmt::print("[show_buffer] - Buffer data: '{}'.\n", std::string(static_cast<const char *>(buffer.data()), buffer.size()));
-		}
+		std::string string;
+		string.resize(4);
+		std::size_t readed = co_await my_stream.async_read_some(asio::buffer(string), io::use_coro);
+		fmt::print("Readed: {} octets, message: '{}'.\n", readed, string);
 	}
-
-	fmt::print("Disconnected.\n");
 }
 
 auto coro() -> io::coro<void>
