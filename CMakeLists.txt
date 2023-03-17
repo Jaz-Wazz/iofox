@@ -39,7 +39,12 @@ target_link_libraries("iofox" PRIVATE
 )
 
 # Add macros.
-target_compile_definitions("iofox" PRIVATE BOOST_ASIO_HAS_CO_AWAIT)
+target_compile_definitions("iofox" PRIVATE
+	BOOST_ASIO_SEPARATE_COMPILATION
+	BOOST_ASIO_NO_DEPRECATED
+	BOOST_ASIO_NO_DYNAMIC_BUFFER_V1
+	BOOST_ASIO_HAS_CO_AWAIT
+)
 
 # Setting minimal api version for windows.
 if(WIN32)
