@@ -7,9 +7,11 @@
 #include <boost/asio/read.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/beast/core/buffered_read_stream.hpp>
 #include <cstring>
 #include <fmt/core.h>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -20,34 +22,39 @@
 
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
-
-auto session(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	fmt::print("connected.\n");
-	for(std::string cmd; std::getline(std::cin, cmd);)
-	{
-		if(cmd == "read")
-		{
-			std::string buffer_x = std::string(4, '\0');
-			std::string buffer_y = std::string(4, '\0');
-			std::size_t readed = co_await socket.async_read_some(std::array {asio::buffer(buffer_x), asio::buffer(buffer_y)}, io::use_coro);
-			fmt::print("readed: {} octets, buffer_x: '{}', buffer_y: '{}'.\n", readed, buffer_x, buffer_y);
-		}
-	}
-}
-
-auto coro() -> io::coro<void>
-{
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 80}};
-    for(;;) asio::co_spawn(co_await this_coro::executor, session(co_await acceptor.async_accept(asio::use_awaitable)), io::rethrowed);
-}
+namespace beast = boost::beast;			// NOLINT.
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	std::string string;
+	auto dynamic_buffer = asio::dynamic_buffer(string);
+
+	for(std::string cmd; std::getline(std::cin, cmd);)
+	{
+		if(cmd == "show")
+		{
+			asio::mutable_buffer buffer = dynamic_buffer.data(0, dynamic_buffer.size());
+			fmt::print("Buffer data: '{}'.\n", std::string(static_cast<char *>(buffer.data()), buffer.size()));
+		}
+		if(cmd == "add")
+		{
+			std::string message_to_write = "message_to_write";
+			dynamic_buffer.grow(message_to_write.size());
+			asio::mutable_buffer buffer = dynamic_buffer.data(dynamic_buffer.size() - message_to_write.size(), message_to_write.size());
+			std::memcpy(buffer.data(), message_to_write.data(), message_to_write.size());
+			fmt::print("Buffer ptr: '{}', size: '{}'.\n", buffer.data(), buffer.size());
+		}
+		if(cmd == "consume")
+		{
+			dynamic_buffer.consume(3);
+		}
+		if(cmd == "shrink")
+		{
+			dynamic_buffer.shrink(3);
+		}
+	}
+
+	return 0;
 }
 catch(const std::exception & e)
 {
