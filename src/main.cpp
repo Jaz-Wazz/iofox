@@ -24,37 +24,34 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
-
-	std::string string;
-	auto dynamic_buffer = asio::dynamic_buffer(string);
+	asio::buffered_read_stream<asio::ip::tcp::socket> buffered_socket {socket.get_executor()};
+	buffered_socket.lowest_layer() = std::move(socket);
 
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
-		if(cmd == "read")
+		if(cmd == "fill")
 		{
-			std::size_t readed = co_await asio::async_read(socket, dynamic_buffer, asio::transfer_at_least(1), io::use_coro);
-			asio::const_buffer buffer = dynamic_buffer.data(0, readed);
-			fmt::print("readed {} octets, message: '{}'.\n", readed, std::string(static_cast<const char *>(buffer.data()), buffer.size()));
-			dynamic_buffer.consume(readed);
+			std::size_t filled = co_await buffered_socket.async_fill(io::use_coro);
+			fmt::print("filled {} octets.\n", filled);
+		}
+		if(cmd == "peak")
+		{
+			std::string buffer = std::string(4, '\0');
+			std::size_t peaked = buffered_socket.peek(asio::buffer(buffer));
+			fmt::print("peaked {} octets, data: '{}'.\n", peaked, buffer);
 		}
 		if(cmd == "read_until")
 		{
-			std::size_t readed = co_await asio::async_read_until(socket, dynamic_buffer, '0', io::use_coro);
-			asio::const_buffer buffer = dynamic_buffer.data(0, readed);
-			fmt::print("readed {} octets, message: '{}'.\n", readed, std::string(static_cast<const char *>(buffer.data()), buffer.size()));
-			dynamic_buffer.consume(readed);
-		}
-		if(cmd == "show_buffer")
-		{
-			asio::const_buffer buffer = dynamic_buffer.data(0, dynamic_buffer.size());
-			fmt::print("buffer: '{}'.\n", std::string(static_cast<const char *>(buffer.data()), buffer.size()));
+			std::string buffer;
+			std::size_t readed = co_await asio::async_read_until(buffered_socket, asio::dynamic_buffer(buffer), '0', io::use_coro);
+			fmt::print("readed {} octets, data: '{}'.\n", readed, buffer);
 		}
 	}
 }
 
 auto coro() -> io::coro<void>
 {
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 80}};
+	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 555}};
     for(;;) asio::co_spawn(co_await this_coro::executor, session(co_await acceptor.async_accept(asio::use_awaitable)), io::rethrowed);
 }
 
