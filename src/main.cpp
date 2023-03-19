@@ -24,14 +24,30 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
+
+	std::string string;
+	auto dynamic_buffer = asio::dynamic_buffer(string);
+
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
 		if(cmd == "read")
 		{
-			std::string buffer_x = std::string(4, '\0');
-			std::string buffer_y = std::string(4, '\0');
-			std::size_t readed = co_await socket.async_read_some(std::array {asio::buffer(buffer_x), asio::buffer(buffer_y)}, io::use_coro);
-			fmt::print("readed: {} octets, buffer_x: '{}', buffer_y: '{}'.\n", readed, buffer_x, buffer_y);
+			std::size_t readed = co_await asio::async_read(socket, dynamic_buffer, asio::transfer_at_least(1), io::use_coro);
+			asio::const_buffer buffer = dynamic_buffer.data(0, readed);
+			fmt::print("readed {} octets, message: '{}'.\n", readed, std::string(static_cast<const char *>(buffer.data()), buffer.size()));
+			dynamic_buffer.consume(readed);
+		}
+		if(cmd == "read_until")
+		{
+			std::size_t readed = co_await asio::async_read_until(socket, dynamic_buffer, '0', io::use_coro);
+			asio::const_buffer buffer = dynamic_buffer.data(0, readed);
+			fmt::print("readed {} octets, message: '{}'.\n", readed, std::string(static_cast<const char *>(buffer.data()), buffer.size()));
+			dynamic_buffer.consume(readed);
+		}
+		if(cmd == "show_buffer")
+		{
+			asio::const_buffer buffer = dynamic_buffer.data(0, dynamic_buffer.size());
+			fmt::print("buffer: '{}'.\n", std::string(static_cast<const char *>(buffer.data()), buffer.size()));
 		}
 	}
 }
