@@ -25,19 +25,29 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
 	std::array<char, 10> buffer {};
-	std::string out;
+	std::vector<std::string> out;
 
-	for(;;)
+	for(int j = 0;;)
 	{
 		std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
 		fmt::print("readed: '{}'.\n", std::string(buffer.data(), readed));
 		for(int i = 0; i < readed; i++)
 		{
-			if(buffer[i] != 'x') out.push_back(buffer[i]); else goto exit;
+			if(buffer[i] == 'x') goto exit;
+			if(buffer[i] != '0')
+			{
+				if(out.size() < j + 1) out.emplace_back();
+				out[j].push_back(buffer[i]);
+			}
+			else
+			{
+				j++;
+			}
 		}
 	} exit:
 
-	fmt::print("out string: '{}'.\n", out);
+	fmt::print("out:\n");
+	for(auto & str : out) fmt::print("{}\n", str);
 }
 
 auto coro() -> io::coro<void>
