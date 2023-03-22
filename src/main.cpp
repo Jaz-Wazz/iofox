@@ -24,29 +24,20 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
-	asio::buffered_read_stream<asio::ip::tcp::socket> buffered_socket {socket.get_executor()};
-	buffered_socket.lowest_layer() = std::move(socket);
+	std::array<char, 10> buffer {};
+	std::string out;
 
-	for(std::string cmd; std::getline(std::cin, cmd);)
+	for(;;)
 	{
-		if(cmd == "fill")
+		std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
+		fmt::print("readed: '{}'.\n", std::string(buffer.data(), readed));
+		for(int i = 0; i < readed; i++)
 		{
-			std::size_t filled = co_await buffered_socket.async_fill(io::use_coro);
-			fmt::print("filled {} octets.\n", filled);
+			if(buffer[i] != 'x') out.push_back(buffer[i]); else goto exit;
 		}
-		if(cmd == "peak")
-		{
-			std::string buffer = std::string(4, '\0');
-			std::size_t peaked = buffered_socket.peek(asio::buffer(buffer));
-			fmt::print("peaked {} octets, data: '{}'.\n", peaked, buffer);
-		}
-		if(cmd == "read_until")
-		{
-			std::string buffer;
-			std::size_t readed = co_await asio::async_read_until(buffered_socket, asio::dynamic_buffer(buffer), '0', io::use_coro);
-			fmt::print("readed {} octets, data: '{}'.\n", readed, buffer);
-		}
-	}
+	} exit:
+
+	fmt::print("out string: '{}'.\n", out);
 }
 
 auto coro() -> io::coro<void>
