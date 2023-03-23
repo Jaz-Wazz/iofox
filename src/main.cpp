@@ -24,30 +24,46 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
-	std::array<char, 10> buffer {};
-	std::vector<std::string> out;
+	std::array<char, 32> buffer {};
 
-	for(int j = 0;;)
+	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
-		std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
-		fmt::print("readed: '{}'.\n", std::string(buffer.data(), readed));
-		for(int i = 0; i < readed; i++)
+		if(cmd == "read_and_parse")
 		{
-			if(buffer[i] == 'x') goto exit;
-			if(buffer[i] != '0')
-			{
-				if(out.size() < j + 1) out.emplace_back();
-				out[j].push_back(buffer[i]);
-			}
-			else
-			{
-				j++;
-			}
-		}
-	} exit:
+			std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
+			fmt::print("readed {} octets.\n", readed);
+			fmt::print("buffer: '{}'.\n", std::string(buffer.data(), buffer.size()));
 
-	fmt::print("out:\n");
-	for(auto & str : out) fmt::print("{}\n", str);
+			const char *	method_data		= nullptr;
+			std::size_t		method_size		= 0;
+			const char *	path_data		= nullptr;
+			std::size_t		path_size		= 0;
+			int				minor_version	= -1;
+			std::size_t		headers_size	= 0;
+
+			int ret = phr_parse_request
+			(
+				buffer.data(),
+				readed,
+				&method_data,
+				&method_size,
+				&path_data,
+				&path_size,
+				&minor_version,
+				nullptr,
+				&headers_size,
+				0
+			);
+
+			fmt::print("method: '{}'.\n", std::string(method_data, method_size));
+			fmt::print("path: '{}'.\n", std::string(path_data, path_size));
+			fmt::print("minor version: '{}'.\n", minor_version);
+
+			if(ret > 0)		fmt::print("ret: '{}'.\n", "successfully parsed");
+			if(ret == -1)	fmt::print("ret: '{}'.\n", "parse error");
+			if(ret == -2)	fmt::print("ret: '{}'.\n", "request is incomplete");
+		}
+	}
 }
 
 auto coro() -> io::coro<void>
