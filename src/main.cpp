@@ -10,6 +10,7 @@
 #include <cstring>
 #include <fmt/core.h>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -21,20 +22,67 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
+std::string pico_err_to_string(int code)
+{
+	if(code > 0)	return "successfully parsed";
+	if(code == -1)	return "parse error";
+	if(code == -2)	return "request is incomplete";
+	throw std::runtime_error("unknown err pico code");
+}
+
+std::string fix_strings(std::string string)
+{
+	std::string out;
+	for(char c : string) if(c == '\r') out += "\\r"; else if(c == '\n') out += "\\n"; else out += c;
+	return out;
+}
+
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
 	char buffer[32] {};
 	std::size_t buffer_size = 0;
+	std::size_t prev_buffer_size = 0;
 
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
 		if(cmd == "read")
 		{
 			std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer + buffer_size, sizeof(buffer) - buffer_size), io::use_coro);
-			fmt::print("buffer: '{}'.\n", std::string(buffer, buffer_size + readed));
-			fmt::print("readed: '{}'.\n", std::string(buffer + buffer_size, readed));
+
+			fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "full buffer",		fix_strings({buffer, buffer_size + readed}));
+			fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "readed chunk",		fix_strings({buffer + buffer_size, readed}));
 			buffer_size += readed;
+			fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "readed size",		buffer_size);
+			fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "prev readed size",	prev_buffer_size);
+
+			const char *	method_data		= nullptr;
+			std::size_t		method_size		= 0;
+			const char *	path_data		= nullptr;
+			std::size_t		path_size		= 0;
+			int				minor_version	= -1;
+			std::size_t		headers_size	= 0;
+
+			int ret = phr_parse_request
+			(
+				buffer,
+				buffer_size,
+				&method_data,
+				&method_size,
+				&path_data,
+				&path_size,
+				&minor_version,
+				nullptr,
+				&headers_size,
+				prev_buffer_size
+			);
+
+			prev_buffer_size += readed;
+
+			fmt::print("[pico_parser] - {:<15} -> '{}'.\n", "method",			std::string(method_data, method_size));
+			fmt::print("[pico_parser] - {:<15} -> '{}'.\n", "path",				std::string(path_data, path_size));
+			fmt::print("[pico_parser] - {:<15} -> '{}'.\n", "minor version",	minor_version);
+			fmt::print("[pico_parser] - {:<15} -> '{}'.\n", "status",			pico_err_to_string(ret));
 		}
 	}
 }
