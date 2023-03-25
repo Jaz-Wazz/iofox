@@ -2,11 +2,15 @@
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <ctype.h>
 #include <exception>
 #include <fmt/core.h>
+#include <fmt/format.h>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <ranges>
 #include <winnls.h>
 #include <winnt.h>
 #include <iofox/third_party/picohttpparser.h>
@@ -49,56 +53,58 @@ namespace io::windows
 	}
 }
 
-namespace io::http
+namespace io::log
 {
-	class start_line
+	template <typename... T> void custom_format_foo(fmt::format_string<char, int, T...> fmt, T && ... args)
 	{
-		pbl std::string method, path, version;
+		fmt::print(fmt, 's', 77, std::forward<T>(args)...);
+	}
 
-		pbl start_line(std::string method, std::string path, std::string version = "HTTP/1.1")
-		: method(std::move(method)), path(std::move(path)), version(std::move(version)) {}
+	inline auto format_hex_dump(void * data, std::size_t size, std::size_t chunk_size = 16)
+	{
+		auto make_printable = [](char c){ return isprint(c) ? c : '.'; };
+		auto xdata = static_cast<char *>(data);
 
-		pbl start_line(std::string_view string)
+		for(auto chunk : std::span(xdata, size) | std::views::chunk(chunk_size))
 		{
-			const char *	method_data		= nullptr;
-			std::size_t		method_size		= 0;
-			const char *	path_data		= nullptr;
-			std::size_t		path_size		= 0;
-			int				minor_version	= -1;
-			std::size_t		headers_size	= 0;
+			auto offset = fmt::format("{:06x}", chunk.data() - xdata);
+			auto bytes = fmt::format("{:{}}", fmt::format("{:02x}", fmt::join(chunk, " ")), chunk_size * 3 - 1);
+			auto chars = fmt::format("{:{}}", fmt::format("{:c}", fmt::join(std::views::transform(chunk, make_printable), "")), chunk_size);
 
-			int ret = phr_parse_request
-			(
-				string.data(),
-				string.size(),
-				&method_data,
-				&method_size,
-				&path_data,
-				&path_size,
-				&minor_version,
-				nullptr,
-				&headers_size,
-				0
-			);
+			fmt::print("| {} | {} | {} |\n", offset, bytes, chars);
+		}
+	}
 
-			if(ret == -2 && method_data != nullptr && path_data != nullptr && minor_version != -1)
-			{
-				method = {method_data, method_size};
-				path = {path_data, path_size};
-				version = (minor_version == 1) ? "HTTP/1.1" : "HTTP/1.0";
-			}
-			else throw std::runtime_error("io::http::start_line parse error");
+	class hex_dump_chunk
+	{
+		prv std::span<char> chunk;
+		prv char * data;
+		prv std::size_t chunk_size;
+
+		pbl hex_dump_chunk(void * data, std::span<char> chunk, std::size_t chunk_size)
+		: data(static_cast<char *>(data)), chunk(std::move(chunk)), chunk_size(chunk_size) {}
+
+		pbl auto offset() -> std::string
+		{
+			return fmt::format("{:06x}", chunk.data() - data);
 		}
 
-		pbl auto serialize() -> std::string
+		pbl auto bytes(std::string_view separator = " ") -> std::string
 		{
-			return fmt::format("{} {} {}", method, path, version);
+			return fmt::format("{:{}}", fmt::format("{:02x}", fmt::join(chunk, separator)), chunk_size * 3 - 1);
+		}
+
+		pbl auto chars(std::string_view separator = "") -> std::string
+		{
+			auto make_printable = [](char c){ return isprint(c) ? c : '.'; };
+			return fmt::format("{:{}}", fmt::format("{:c}", fmt::join(std::views::transform(chunk, make_printable), separator)), chunk_size);
 		}
 	};
 
-	inline auto read_start_line() -> io::coro<void>
+	inline auto hex_dump(void * data, std::size_t size, std::size_t chunk_size = 16)
 	{
-		co_return;
+		return std::span<char>(static_cast<char *>(data), size) | std::views::chunk(chunk_size)
+		| std::views::transform([=](auto chunk){ return io::log::hex_dump_chunk(data, chunk, chunk_size); });
 	}
 };
 
