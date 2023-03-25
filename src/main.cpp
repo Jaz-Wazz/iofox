@@ -1,3 +1,4 @@
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -18,19 +19,17 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
 	char buffer[8192] {};
-	std::size_t buffer_size = 0;
-	std::size_t prev_buffer_size = 0;
+	asio::mutable_buffer buffer_0, buffer_1, buffer_2 = asio::buffer(buffer);
 
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
 		if(cmd == "read")
 		{
-			std::size_t readed = co_await socket.async_read_some(asio::buffer(buffer + buffer_size, sizeof(buffer) - buffer_size), io::use_coro);
+			std::size_t readed = co_await socket.async_read_some(buffer_2, io::use_coro);
 
-			auto buffer_0 = asio::buffer(buffer, buffer_size);
-			auto buffer_1 = asio::buffer(buffer + buffer_size, readed);
-			auto buffer_2 = asio::buffer(buffer + buffer_size + readed, sizeof(buffer) - buffer_size - readed);
-			buffer_size += readed;
+			buffer_0 = asio::buffer(buffer, buffer_0.size());
+			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
+			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
 
 			fmt::print("┌─────────────────────────────────────────────────────────────────────────────────────────┐\n");
 			fmt::print("│ Buffer dump                                                                             │\n");
@@ -73,6 +72,8 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 			}
 			fmt::print("│           │        │ {:47} │                  │\n", fmt::format("And {} same lines...", dump_2.size() - 5));
 			fmt::print("└───────────┴────────┴─────────────────────────────────────────────────┴──────────────────┘\n");
+
+			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
 		}
 	}
 }
