@@ -55,25 +55,10 @@ namespace io::windows
 
 namespace io::log
 {
-	template <typename... T> void custom_format_foo(fmt::format_string<char, int, T...> fmt, T && ... args)
+	inline char make_printable(char c)
 	{
-		fmt::print(fmt, 's', 77, std::forward<T>(args)...);
-	}
-
-	inline auto format_hex_dump(void * data, std::size_t size, std::size_t chunk_size = 16)
-	{
-		auto make_printable = [](char c){ return isprint(c) ? c : '.'; };
-		auto xdata = static_cast<char *>(data);
-
-		for(auto chunk : std::span(xdata, size) | std::views::chunk(chunk_size))
-		{
-			auto offset = fmt::format("{:06x}", chunk.data() - xdata);
-			auto bytes = fmt::format("{:{}}", fmt::format("{:02x}", fmt::join(chunk, " ")), chunk_size * 3 - 1);
-			auto chars = fmt::format("{:{}}", fmt::format("{:c}", fmt::join(std::views::transform(chunk, make_printable), "")), chunk_size);
-
-			fmt::print("| {} | {} | {} |\n", offset, bytes, chars);
-		}
-	}
+		return isprint(c) ? c : '.';
+	};
 
 	class hex_dump_chunk
 	{
@@ -89,22 +74,21 @@ namespace io::log
 			return fmt::format("{:06x}", chunk.data() - data);
 		}
 
-		pbl auto bytes(std::string_view separator = " ") -> std::string
+		pbl auto bytes() -> std::string
 		{
-			return fmt::format("{:{}}", fmt::format("{:02x}", fmt::join(chunk, separator)), chunk_size * 3 - 1);
+			return fmt::format("{:{}}", fmt::format("{:02x}", fmt::join(chunk, " ")), chunk_size * 3 - 1);
 		}
 
-		pbl auto chars(std::string_view separator = "") -> std::string
+		pbl auto chars() -> std::string
 		{
-			auto make_printable = [](char c){ return isprint(c) ? c : '.'; };
-			return fmt::format("{:{}}", fmt::format("{:c}", fmt::join(std::views::transform(chunk, make_printable), separator)), chunk_size);
+			return fmt::format("{:{}}", fmt::format("{:c}", fmt::join(std::views::transform(chunk, make_printable), "")), chunk_size);
 		}
 	};
 
 	inline auto hex_dump(void * data, std::size_t size, std::size_t chunk_size = 16)
 	{
-		return std::span<char>(static_cast<char *>(data), size) | std::views::chunk(chunk_size)
-		| std::views::transform([=](auto chunk){ return io::log::hex_dump_chunk(data, chunk, chunk_size); });
+		auto make_hex_dump_chunk = [=](auto chunk){ return io::log::hex_dump_chunk(data, chunk, chunk_size); };
+		return std::span(static_cast<char *>(data), size) | std::views::chunk(chunk_size) | std::views::transform(make_hex_dump_chunk);
 	}
 };
 
