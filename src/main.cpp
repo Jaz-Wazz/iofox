@@ -42,10 +42,23 @@ auto buf_to_str(auto buffer) -> std::string
 	return {static_cast<const char *>(buffer.data()), buffer.size()};
 }
 
+void hexdump(void * ptr, std::size_t size)
+{
+	unsigned char * buf = static_cast<unsigned char *>(ptr);
+	for (int i = 0; i < size; i += 16)
+	{
+		fmt::print("│ {:06x} │ ", i);
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:02x} ", buf[i + j]); else fmt::print("   ");
+		fmt::print("│ ");
+		for (int j = 0; j < 16; j++) if (i + j < size) fmt::print("{:c}", isprint(buf[i + j]) ? buf[i + j] : '.'); else fmt::print(" ");
+		fmt::print(" │\n");
+	}
+}
+
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
-	char buffer[32] {};
+	char buffer[8192] {};
 	std::size_t buffer_size = 0;
 	std::size_t prev_buffer_size = 0;
 
@@ -60,7 +73,22 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 			auto buffer_2 = asio::buffer(buffer + buffer_size + readed, sizeof(buffer) - buffer_size - readed);
 			buffer_size += readed;
 
-			fmt::print("[socket_reader] - [{}] + [{}] + [{}].\n", buf_to_str(buffer_0), buf_to_str(buffer_1), buf_to_str(buffer_2));
+			fmt::print("┌─────────────────────────────────────────────────────────────────────────────┐\n");
+			fmt::print("│ Buffer dump                                                                 │\n");
+			fmt::print("├─────────────────────────────────────────────────────────────────────────────┤\n");
+			hexdump(buffer_0.data(), buffer_0.size());
+			fmt::print("├─────────────────────────────────────────────────────────────────────────────┤\n");
+			hexdump(buffer_1.data(), buffer_1.size());
+			fmt::print("├─────────────────────────────────────────────────────────────────────────────┤\n");
+			hexdump(buffer_2.data(), buffer_2.size());
+			fmt::print("└─────────────────────────────────────────────────────────────────────────────┘\n");
+
+			// fmt::print("[socket_reader] - [{}] + [{}] + [{}].\n", buf_to_str(buffer_0), buf_to_str(buffer_1), buf_to_str(buffer_2));
+
+			// fmt::print("┌─────────────────────────────────────┐\n");
+			// fmt::print("│ Read                                │\n");
+			// fmt::print("├─────────────────────────────────────┤\n");
+			// fmt::print("│ [{}] + [{}] + [{}].\n", buf_to_str(buffer_0), buf_to_str(buffer_1), buf_to_str(buffer_2));
 
 			// fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "full buffer",		fix_strings({buffer, buffer_size + readed}));
 			// fmt::print("[socket_reader] - {:<16} -> '{}'.\n", "readed chunk",		fix_strings({buffer + buffer_size, readed}));
