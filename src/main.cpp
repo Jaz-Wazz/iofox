@@ -35,12 +35,19 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 			fmt::print("│ Buffer dump                                                                             │\n");
 			fmt::print("├───────────┬────────┬─────────────────────────────────────────────────┬──────────────────┤\n");
 
-			for(auto chunk : io::log::hex_dump(buffer_0.data(), buffer_0.size()) | std::views::take(1))
+			auto dump_0 = io::log::hex_dump(buffer_0.data(), buffer_0.size());
+
+			if(dump_0.size() == 0)
+			{
+				fmt::print("│ Buffer 0: │        │ Buffer empty.                                   │                  │\n");
+			}
+
+			for(auto chunk : dump_0 | std::views::take(1))
 			{
 				fmt::print("│ Buffer 0: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
 			}
 
-			for(auto chunk : io::log::hex_dump(buffer_0.data(), buffer_0.size()) | std::views::drop(1))
+			for(auto chunk : dump_0 | std::views::drop(1))
 			{
 				fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
 			}
