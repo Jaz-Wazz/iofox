@@ -104,39 +104,43 @@ namespace io::log
 		fmt::print("│ Read cycle                                                                      [iofox] │\n");
 		fmt::print("├───────────┬─────────────────────────────────────────────────────────────────────────────┤\n");
 
-		auto dump_0 = io::log::hex_dump(buffer_0.data(), buffer_0.size());
-
-		if(dump_0.size() == 0)
+		if(auto dump = io::log::hex_dump(buffer_0.data(), buffer_0.size()); !dump.empty())
 		{
-			fmt::print("│ {:9} │ {:75} │\n", "Buffer 0:", "Buffer empty.");
+			for(auto [i, chunk] : io::log::enumerate(dump))
+			{
+				fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 0:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+			}
 		}
-
-		for(auto [i, chunk] : io::log::enumerate(dump_0))
-		{
-			fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 0:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
-		}
+		else fmt::print("│ {:9} │ {:75} │\n", "Buffer 0:", "Buffer empty.");
 
 		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
 
-		for(auto [i, chunk] : io::log::enumerate(io::log::hex_dump(buffer_1.data(), buffer_1.size())))
+		if(auto dump = io::log::hex_dump(buffer_1.data(), buffer_1.size()); !dump.empty())
 		{
-			fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 1:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+			for(auto [i, chunk] : io::log::enumerate(dump))
+			{
+				fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 1:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+			}
 		}
+		else fmt::print("│ {:9} │ {:75} │\n", "Buffer 1:", "Buffer empty.");
 
 		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
 
-		for(auto dump = io::log::hex_dump(buffer_2.data(), buffer_2.size()); auto [i, chunk] : io::log::enumerate(dump))
+		if(auto dump = io::log::hex_dump(buffer_2.data(), buffer_2.size()); !dump.empty())
 		{
-			if(i < 5)
+			for(auto [i, chunk] : io::log::enumerate(dump))
 			{
-				fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 2:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+				if(i < 5)
+				{
+					fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 2:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+				}
+				else
+				{
+					fmt::print("│ {:9} │ {:6} │ {:47} │ {:16} │\n", "", "", fmt::format("And {} same lines...", dump.size() - 5), "");
+					break;
+				}
 			}
-			else
-			{
-				fmt::print("│ {:9} │ {:6} │ {:47} │ {:16} │\n", "", "", fmt::format("And {} same lines...", dump.size() - 5), "");
-				break;
-			}
-		}
+		} else fmt::print("│ {:9} │ {:75} │\n", "Buffer 2:", "Buffer empty.");
 
 		fmt::print("└─────────────────────────────────────────────────────────────────────────────────────────┘\n");
 	}
