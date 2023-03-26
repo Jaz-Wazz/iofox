@@ -102,29 +102,29 @@ namespace io::log
 
 		if(dump_0.size() == 0)
 		{
-			fmt::print("│ Buffer 0: │ Buffer empty.                                                               │\n");
+			fmt::print("│ {:9} │ {:75} │\n", "Buffer 0:", "Buffer empty.");
 		}
 
 		for(auto chunk : dump_0 | std::views::take(1))
 		{
-			fmt::print("│ Buffer 0: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "Buffer 0:", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 
 		for(auto chunk : dump_0 | std::views::drop(1))
 		{
-			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 
 		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
 
 		for(auto chunk : io::log::hex_dump(buffer_1.data(), buffer_1.size()) | std::views::take(1))
 		{
-			fmt::print("│ Buffer 1: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "Buffer 1:", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 
 		for(auto chunk : io::log::hex_dump(buffer_1.data(), buffer_1.size()) | std::views::drop(1))
 		{
-			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 
 		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
@@ -133,12 +133,12 @@ namespace io::log
 
 		for(auto chunk : dump_2 | std::views::take(1))
 		{
-			fmt::print("│ Buffer 2: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "Buffer 2:", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 
 		for(auto chunk : dump_2 | std::views::drop(1) | std::views::take(4))
 		{
-			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+			fmt::print("│ {:9} │ {} │ {} │ {} │\n", "", chunk.offset(), chunk.bytes(), chunk.chars());
 		}
 		fmt::print("│           │        │ {:47} │                  │\n", fmt::format("And {} same lines...", dump_2.size() - 5));
 		fmt::print("└─────────────────────────────────────────────────────────────────────────────────────────┘\n");
