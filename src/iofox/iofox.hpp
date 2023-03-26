@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <ctype.h>
 #include <exception>
@@ -89,6 +90,58 @@ namespace io::log
 	{
 		auto make_hex_dump_chunk = [=](auto chunk){ return io::log::hex_dump_chunk(data, chunk, chunk_size); };
 		return std::span(static_cast<char *>(data), size) | std::views::chunk(chunk_size) | std::views::transform(make_hex_dump_chunk);
+	}
+
+	inline auto print_read_cycle(asio::mutable_buffer buffer_0, asio::mutable_buffer buffer_1, asio::mutable_buffer buffer_2)
+	{
+		fmt::print("┌─────────────────────────────────────────────────────────────────────────────────────────┐\n");
+		fmt::print("│ Read cycle                                                                      [iofox] │\n");
+		fmt::print("├───────────┬─────────────────────────────────────────────────────────────────────────────┤\n");
+
+		auto dump_0 = io::log::hex_dump(buffer_0.data(), buffer_0.size());
+
+		if(dump_0.size() == 0)
+		{
+			fmt::print("│ Buffer 0: │ Buffer empty.                                                               │\n");
+		}
+
+		for(auto chunk : dump_0 | std::views::take(1))
+		{
+			fmt::print("│ Buffer 0: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+
+		for(auto chunk : dump_0 | std::views::drop(1))
+		{
+			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+
+		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
+
+		for(auto chunk : io::log::hex_dump(buffer_1.data(), buffer_1.size()) | std::views::take(1))
+		{
+			fmt::print("│ Buffer 1: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+
+		for(auto chunk : io::log::hex_dump(buffer_1.data(), buffer_1.size()) | std::views::drop(1))
+		{
+			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+
+		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
+
+		auto dump_2 = io::log::hex_dump(buffer_2.data(), buffer_2.size());
+
+		for(auto chunk : dump_2 | std::views::take(1))
+		{
+			fmt::print("│ Buffer 2: │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+
+		for(auto chunk : dump_2 | std::views::drop(1) | std::views::take(4))
+		{
+			fmt::print("│           │ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+		fmt::print("│           │        │ {:47} │                  │\n", fmt::format("And {} same lines...", dump_2.size() - 5));
+		fmt::print("└─────────────────────────────────────────────────────────────────────────────────────────┘\n");
 	}
 };
 
