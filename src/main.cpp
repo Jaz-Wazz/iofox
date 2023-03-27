@@ -1,3 +1,4 @@
+#include <iofox/third_party/picohttpparser.h>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
@@ -36,7 +37,8 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 			const char *	path_data		= nullptr;
 			std::size_t		path_size		= 0;
 			int				minor_version	= -1;
-			std::size_t		headers_size	= 0;
+			phr_header		headers[3]		= {};
+			std::size_t		headers_size	= sizeof(headers);
 
 			int ret = phr_parse_request
 			(
@@ -47,12 +49,23 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 				&path_data,
 				&path_size,
 				&minor_version,
-				nullptr,
+				headers,
 				&headers_size,
 				buffer_0.size()
 			);
 
-			io::log::print_read_cycle(buffer_0, buffer_1, buffer_2, {method_data, method_size}, {path_data, path_size}, minor_version, ret);
+			io::log::print_read_cycle
+			(
+				buffer_0,
+				buffer_1,
+				buffer_2,
+				{method_data, method_size},
+				{path_data, path_size},
+				{headers, headers_size},
+				minor_version,
+				ret
+			);
+
 			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
 		}
 	}

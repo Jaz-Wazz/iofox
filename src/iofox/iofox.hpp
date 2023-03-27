@@ -105,6 +105,7 @@ namespace io::log
 		asio::mutable_buffer buffer_2,
 		std::string_view method,
 		std::string_view path,
+		std::span<phr_header> headers,
 		int minor_version,
 		int parser_code
 	)
@@ -156,6 +157,18 @@ namespace io::log
 		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Path:", path);
 		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Minor version:", minor_version);
 		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Parser code:", parser_code);
+		fmt::print("│           │ ─────────────────────────────────────────────────────────────────────────── │\n");
+
+		if(!headers.empty())
+		{
+			for(auto && [i, header] : io::log::enumerate(headers))
+			{
+				auto line = fmt::format("{}: {}", std::string(header.name, header.name_len), std::string(header.value, header.value_len));
+				fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", (i == 0) ? "Headers: " : "", line);
+			}
+		}
+		else fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Headers: ", "Empty.");
+
 		fmt::print("└───────────┴─────────────────────────────────────────────────────────────────────────────┘\n");
 	}
 };
