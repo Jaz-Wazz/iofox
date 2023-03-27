@@ -98,7 +98,16 @@ namespace io::log
 		return std::views::zip(std::views::iota(std::size_t()), range);
 	}
 
-	inline auto print_read_cycle(asio::mutable_buffer buffer_0, asio::mutable_buffer buffer_1, asio::mutable_buffer buffer_2)
+	inline auto print_read_cycle
+	(
+		asio::mutable_buffer buffer_0,
+		asio::mutable_buffer buffer_1,
+		asio::mutable_buffer buffer_2,
+		std::string_view method,
+		std::string_view path,
+		int minor_version,
+		int parser_code
+	)
 	{
 		fmt::print("┌─────────────────────────────────────────────────────────────────────────────────────────┐\n");
 		fmt::print("│ Read cycle                                                                      [iofox] │\n");
@@ -142,7 +151,12 @@ namespace io::log
 			}
 		} else fmt::print("│ {:9} │ {:75} │\n", "Buffer 2:", "Buffer empty.");
 
-		fmt::print("└─────────────────────────────────────────────────────────────────────────────────────────┘\n");
+		fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
+		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "Parser:", "Method:", method);
+		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Path:", path);
+		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Minor version:", minor_version);
+		fmt::print("│ {:9} │ {:14} │ {:<58} │\n", "", "Parser code:", parser_code);
+		fmt::print("└───────────┴─────────────────────────────────────────────────────────────────────────────┘\n");
 	}
 };
 

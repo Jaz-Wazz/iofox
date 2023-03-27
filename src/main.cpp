@@ -31,8 +31,28 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
 			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
 
-			io::log::print_read_cycle(buffer_0, buffer_1, buffer_2);
+			const char *	method_data		= nullptr;
+			std::size_t		method_size		= 0;
+			const char *	path_data		= nullptr;
+			std::size_t		path_size		= 0;
+			int				minor_version	= -1;
+			std::size_t		headers_size	= 0;
 
+			int ret = phr_parse_request
+			(
+				buffer,
+				buffer_0.size() + buffer_1.size(),
+				&method_data,
+				&method_size,
+				&path_data,
+				&path_size,
+				&minor_version,
+				nullptr,
+				&headers_size,
+				buffer_0.size()
+			);
+
+			io::log::print_read_cycle(buffer_0, buffer_1, buffer_2, {method_data, method_size}, {path_data, path_size}, minor_version, ret);
 			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
 		}
 	}
