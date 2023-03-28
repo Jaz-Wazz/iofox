@@ -1,3 +1,5 @@
+#include <boost/beast/core/error.hpp>
+#include <chrono>
 #include <iofox/third_party/picohttpparser.h>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -6,7 +8,10 @@
 #include <boost/asio/registered_buffer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/empty_body.hpp>
 #include <fmt/core.h>
+#include <fmt/chrono.h>
 #include <iostream>
 #include <ranges>
 #include <stdexcept>
@@ -15,74 +20,37 @@
 
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
-
-auto session(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	fmt::print("connected.\n");
-	char buffer[8192] {};
-	asio::mutable_buffer buffer_0, buffer_1, buffer_2 = asio::buffer(buffer);
-
-	for(std::string cmd; std::getline(std::cin, cmd);)
-	{
-		if(cmd == "read")
-		{
-			std::size_t readed = co_await socket.async_read_some(buffer_2, io::use_coro);
-
-			buffer_0 = asio::buffer(buffer, buffer_0.size());
-			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
-			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
-
-			const char *	method_data		= nullptr;
-			std::size_t		method_size		= 0;
-			const char *	path_data		= nullptr;
-			std::size_t		path_size		= 0;
-			int				minor_version	= -1;
-			phr_header		headers[3]		= {};
-			std::size_t		headers_size	= sizeof(headers);
-
-			int ret = phr_parse_request
-			(
-				buffer,
-				buffer_0.size() + buffer_1.size(),
-				&method_data,
-				&method_size,
-				&path_data,
-				&path_size,
-				&minor_version,
-				headers,
-				&headers_size,
-				buffer_0.size()
-			);
-
-			io::log::print_read_cycle
-			(
-				buffer_0,
-				buffer_1,
-				buffer_2,
-				{method_data, method_size},
-				{path_data, path_size},
-				{headers, headers_size},
-				minor_version,
-				ret
-			);
-
-			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
-		}
-	}
-}
-
-auto coro() -> io::coro<void>
-{
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 555}};
-    for(;;) asio::co_spawn(co_await this_coro::executor, session(co_await acceptor.async_accept(asio::use_awaitable)), io::rethrowed);
-}
+namespace beast = boost::beast;			// NOLINT.
 
 int main() try
 {
 	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	std::string buffer = "GET /page.html HTTP/1.1\r\n\r\n";
+
+	auto time_0 = std::chrono::steady_clock::now();
+	{
+		// for(int i = 0; i < 10'000'000; i++)
+		for(int i = 0; i < 1'000'000; i++)
+		{
+			beast::http::request_parser<beast::http::empty_body> parser;
+			beast::error_code ec;
+			parser.put(asio::buffer(buffer), ec);
+			auto request = parser.release();
+		}
+	}
+	auto time_1 = std::chrono::steady_clock::now();
+	fmt::print("Time: {:%S} sec.\n", time_1 - time_0);
+	fmt::print("Time: {} sec.\n", std::chrono::duration_cast<std::chrono::seconds>(time_1 - time_0));
+	// fmt::print("Time one request: {:%S} sec.\n", 10'000'000 / (time_1 - time_0).count());
+
+	// Req Sec
+	// 100 4
+	//
+
+	// fmt::print("status: '{}'.\n", ec.message());
+	// fmt::print("{} {} {}\n", request.method_string(), request.target(), request.version());
+
+	return 0;
 }
 catch(const std::exception & e)
 {
