@@ -16,6 +16,70 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
+// ------------------
+// GET /page.html HTTP/1.1
+// Host: site.com
+// body
+// ---------------------
+
+// auto request = read_request(socket);
+
+// auto headers = read_headers(socket);
+// auto body = read_body(socket);
+
+// buffer buffer;
+// auto headers = read_headers(socket, buffer);
+// auto body = read_body(socket, buffer);
+
+// auto headers = read_headers(buffered_socket, buffer);
+// auto body = read_body(buffered_socket, buffer);
+
+// parser << socket;
+// parser << socket;
+// parser >> headers;
+
+// std::ifstream stream {"file.txt"};
+// int i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+// stream >> i;
+
+// [file] -> [stream_buffer] -> [user_object].
+
+
+// buffered_socket >> object;
+// buffered_socket.read(object, size);
+
+// socket.read(4);
+
+
+// io::http::request request {socket};
+// io::http::body<std::string> body {socket};
+
+
+
+// io::http_stream stream;
+//
+// io::http::request<std::string> request;
+// stream >> request;
+
+// io::http_stream stream;
+//
+// io::http::request request;
+// stream >> request;
+//
+// std::string body;
+// strram >> body;
+//
+// io::http::response response;
+// stream << response;
+
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
@@ -79,10 +143,7 @@ auto coro() -> io::coro<void>
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	return 0;
 }
 catch(const std::exception & e)
 {
