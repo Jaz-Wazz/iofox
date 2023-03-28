@@ -1,88 +1,83 @@
-#include <iofox/third_party/picohttpparser.h>
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/registered_buffer.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/type_traits.hpp>
 #include <fmt/core.h>
 #include <iostream>
-#include <ranges>
 #include <stdexcept>
-#include <string>
-#include <iofox/iofox.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/message.hpp>
 
 namespace asio = boost::asio;			// NOLINT.
-namespace this_coro = asio::this_coro;	// NOLINT.
+namespace beast = boost::beast;			// NOLINT.
 
-auto session(asio::ip::tcp::socket socket) -> io::coro<void>
+class my_fields
 {
-	fmt::print("connected.\n");
-	char buffer[8192] {};
-	asio::mutable_buffer buffer_0, buffer_1, buffer_2 = asio::buffer(buffer);
+public:
 
-	for(std::string cmd; std::getline(std::cin, cmd);)
-	{
-		if(cmd == "read")
-		{
-			std::size_t readed = co_await socket.async_read_some(buffer_2, io::use_coro);
+	// struct FieldsWriter
+	// {
+	// 	// The type of buffers returned by `get`
+	// 	struct const_buffers_type;
 
-			buffer_0 = asio::buffer(buffer, buffer_0.size());
-			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
-			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
+	// 	// Constructor for requests
+	// 	FieldsWriter(Fields const& f, unsigned version, verb method);
 
-			const char *	method_data		= nullptr;
-			std::size_t		method_size		= 0;
-			const char *	path_data		= nullptr;
-			std::size_t		path_size		= 0;
-			int				minor_version	= -1;
-			phr_header		headers[3]		= {};
-			std::size_t		headers_size	= sizeof(headers);
+	// 	// Constructor for responses
+	// 	FieldsWriter(Fields const& f, unsigned version, unsigned status);
 
-			int ret = phr_parse_request
-			(
-				buffer,
-				buffer_0.size() + buffer_1.size(),
-				&method_data,
-				&method_size,
-				&path_data,
-				&path_size,
-				&minor_version,
-				headers,
-				&headers_size,
-				buffer_0.size()
-			);
+	// 	// Returns the serialized header buffers
+	// 	const_buffers_type get();
+	// };
 
-			io::log::print_read_cycle
-			(
-				buffer_0,
-				buffer_1,
-				buffer_2,
-				{method_data, method_size},
-				{path_data, path_size},
-				{headers, headers_size},
-				minor_version,
-				ret
-			);
+    struct writer;
 
-			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
-		}
-	}
-}
+	struct value_type;
 
-auto coro() -> io::coro<void>
+protected:
+    beast::string_view get_method_impl() const;
+    beast::string_view get_target_impl() const;
+    beast::string_view get_reason_impl() const;
+    bool get_chunked_impl() const;
+    bool get_keep_alive_impl(unsigned version) const;
+    bool has_content_length_impl() const;
+    void set_method_impl(beast::string_view s);
+    void set_target_impl(beast::string_view s);
+    void set_reason_impl(beast::string_view s);
+    void set_chunked_impl(bool value);
+    void set_content_length_impl(boost::optional<std::uint64_t>);
+    void set_keep_alive_impl(unsigned version, bool keep_alive);
+};
+
+class x_fields: public beast::http::fields
 {
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 555}};
-    for(;;) asio::co_spawn(co_await this_coro::executor, session(co_await acceptor.async_accept(asio::use_awaitable)), io::rethrowed);
-}
+	public: using beast::http::fields::value_type;
+	public: using beast::http::fields::allocator_type;
+	public: using beast::http::fields::const_iterator;
+	public: using beast::http::fields::iterator;
+	public: using beast::http::fields::writer;
+	public: using beast::http::fields::basic_fields;
+	public: using off_t = std::uint16_t;
+
+	using beast::http::fields::basic_fields::
+};
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	// beast::http::fields fields;
+
+	// bool x = beast::http::is_fields<beast::http::fields>::value;
+	// bool y = beast::http::is_fields<my_fields>::value;
+
+	// beast::http::request<beast::http::empty_body, beast::http::fields> request_x;
+
+	// beast::http::fields::value_type x{}
+
+	// beast::http::parser<1, beast::http::empty_body, beast::http::fields> parser_x;
+	beast::http::parser<1, beast::http::empty_body, x_fields> parser_y;
+
+	// beast::http::request<beast::http::empty_body, my_fields> request_y;
+
+	return 0;
 }
 catch(const std::exception & e)
 {
