@@ -18,21 +18,6 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
-	// io::tribuf tribuf;
-
-	// read
-	// std::size_t readed = co_await socket.async_read_some(tribuf.buffer_2(), io::use_coro);
-	// tribuf.move_buffer_2_to_buffer_1(readed);
-	// tribuf.move_future_to_current(readed);
-	// [future] -> [current]
-
-	// analize
-	// auto some_data = tribuf.buffer_1();
-
-	// tribuf.move_buffer_1_to_buffer_0();
-	// tribuf.move_current_to_past();
-	// [current] -> [past]
-
 	fmt::print("connected.\n");
 	io::tribuf tribuf;
 
@@ -65,18 +50,7 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 				tribuf.buffer_0().size()
 			);
 
-			io::log::print_read_cycle
-			(
-				tribuf.buffer_0(),
-				tribuf.buffer_1(),
-				tribuf.buffer_2(),
-				{method_data, method_size},
-				{path_data, path_size},
-				{headers, headers_size},
-				minor_version,
-				ret
-			);
-
+			tribuf.print();
 			tribuf.move_buffer_1_to_bufer_0();
 		}
 	}
