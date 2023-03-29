@@ -181,27 +181,32 @@ namespace io
 		prv std::size_t buffer_0_size = 0;
 		prv std::size_t buffer_1_size = 0;
 
-		pbl auto buffer_0() -> asio::mutable_buffer // past
+		pbl auto buffer_past() -> asio::mutable_buffer
 		{
 			return {buffer, buffer_0_size};
 		}
 
-		pbl auto buffer_1() -> asio::mutable_buffer // current
+		pbl auto buffer_current() -> asio::mutable_buffer
 		{
 			return {buffer + buffer_0_size, buffer_1_size};
 		}
 
-		pbl auto buffer_2() -> asio::mutable_buffer // future
+		pbl auto buffer_future() -> asio::mutable_buffer
 		{
 			return {buffer + buffer_0_size + buffer_1_size, sizeof(buffer) - buffer_0_size - buffer_1_size};
 		}
 
-		pbl void move_buffer_2_to_bufer_1(std::size_t size)
+		pbl auto buffer_past_and_current() -> asio::mutable_buffer
+		{
+			return {buffer, buffer_1_size};
+		}
+
+		pbl void move_future_to_current(std::size_t size)
 		{
 			buffer_1_size += size;
 		}
 
-		pbl void move_buffer_1_to_bufer_0()
+		pbl void move_current_to_past()
 		{
 			buffer_0_size += buffer_1_size;
 			buffer_1_size = 0;
@@ -209,47 +214,47 @@ namespace io
 
 		pbl void print()
 		{
-			fmt::print("┌─────────────────────────────────────────────────────────────────────────────────────────┐\n");
-			fmt::print("│ Buffers dump                                                                    [iofox] │\n");
-			fmt::print("├───────────┬─────────────────────────────────────────────────────────────────────────────┤\n");
+			fmt::print("┌───────────────────────────────────────────────────────────────────────────────────────────────┐\n");
+			fmt::print("│ Buffers dump                                                                          [iofox] │\n");
+			fmt::print("├─────────────────┬─────────────────────────────────────────────────────────────────────────────┤\n");
 
-			if(auto dump = io::log::hex_dump(buffer_0().data(), buffer_0().size()); !dump.empty())
+			if(auto dump = io::log::hex_dump(buffer_past().data(), buffer_past().size()); !dump.empty())
 			{
 				for(auto [i, chunk] : io::log::enumerate(dump))
 				{
-					fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 0:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+					fmt::print("│ {:15} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer past:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
 				}
 			}
-			else fmt::print("│ {:9} │ {:75} │\n", "Buffer 0:", "Buffer empty.");
+			else fmt::print("│ {:15} │ {:75} │\n", "Buffer past:", "Buffer empty.");
 
-			fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
+			fmt::print("├─────────────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
 
-			if(auto dump = io::log::hex_dump(buffer_1().data(), buffer_1().size()); !dump.empty())
+			if(auto dump = io::log::hex_dump(buffer_current().data(), buffer_current().size()); !dump.empty())
 			{
 				for(auto [i, chunk] : io::log::enumerate(dump))
 				{
-					fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 1:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+					fmt::print("│ {:15} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer current:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
 				}
 			}
-			else fmt::print("│ {:9} │ {:75} │\n", "Buffer 1:", "Buffer empty.");
+			else fmt::print("│ {:15} │ {:75} │\n", "Buffer current:", "Buffer empty.");
 
-			fmt::print("├───────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
-			if(auto dump = io::log::hex_dump(buffer_2().data(), buffer_2().size()); !dump.empty())
+			fmt::print("├─────────────────┼─────────────────────────────────────────────────────────────────────────────┤\n");
+			if(auto dump = io::log::hex_dump(buffer_future().data(), buffer_future().size()); !dump.empty())
 			{
 				for(auto [i, chunk] : io::log::enumerate(dump))
 				{
 					if(i < 5)
 					{
-						fmt::print("│ {:9} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer 2:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
+						fmt::print("│ {:15} │ {} │ {} │ {} │\n", (i == 0) ? "Buffer future:" : "", chunk.offset(), chunk.bytes(), chunk.chars());
 					}
 					else
 					{
-						fmt::print("│ {:9} │ {:6} │ {:47} │ {:16} │\n", "", "", fmt::format("And {} same lines...", dump.size() - 5), "");
+						fmt::print("│ {:15} │ {:6} │ {:47} │ {:16} │\n", "", "", fmt::format("And {} same lines...", dump.size() - 5), "");
 						break;
 					}
 				}
-			} else fmt::print("│ {:9} │ {:75} │\n", "Buffer 2:", "Buffer empty.");
-			fmt::print("└───────────┴─────────────────────────────────────────────────────────────────────────────┘\n");
+			} else fmt::print("│ {:15} │ {:75} │\n", "Buffer future:", "Buffer empty.");
+			fmt::print("└─────────────────┴─────────────────────────────────────────────────────────────────────────────┘\n");
 		};
 	};
 };

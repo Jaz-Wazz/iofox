@@ -25,8 +25,8 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 	{
 		if(cmd == "read")
 		{
-			std::size_t readed = co_await socket.async_read_some(tribuf.buffer_2(), io::use_coro);
-			tribuf.move_buffer_2_to_bufer_1(readed);
+			std::size_t readed = co_await socket.async_read_some(tribuf.buffer_future(), io::use_coro);
+			tribuf.move_future_to_current(readed);
 
 			const char *	method_data		= nullptr;
 			std::size_t		method_size		= 0;
@@ -38,8 +38,8 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 
 			int ret = phr_parse_request
 			(
-				static_cast<char *>(tribuf.buffer_0().data()),
-				tribuf.buffer_0().size() + tribuf.buffer_1().size(),
+				static_cast<char *>(tribuf.buffer_past_and_current().data()),
+				tribuf.buffer_past_and_current().size(),
 				&method_data,
 				&method_size,
 				&path_data,
@@ -47,11 +47,11 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 				&minor_version,
 				headers,
 				&headers_size,
-				tribuf.buffer_0().size()
+				tribuf.buffer_past().size()
 			);
 
 			tribuf.print();
-			tribuf.move_buffer_1_to_bufer_0();
+			tribuf.move_current_to_past();
 		}
 	}
 }
