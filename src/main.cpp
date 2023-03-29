@@ -19,54 +19,26 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	fmt::print("connected.\n");
-	char buffer[8192] {};
-	asio::mutable_buffer buffer_0, buffer_1, buffer_2 = asio::buffer(buffer);
+	io::stream stream {std::move(socket)};
 
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
+		if(cmd == "print")
+		{
+			io::log::print_hex_dump(stream.buffer().data(), stream.buffer().size());
+		}
 		if(cmd == "read")
 		{
-			std::size_t readed = co_await socket.async_read_some(buffer_2, io::use_coro);
-
-			buffer_0 = asio::buffer(buffer, buffer_0.size());
-			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
-			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
-
-			const char *	method_data		= nullptr;
-			std::size_t		method_size		= 0;
-			const char *	path_data		= nullptr;
-			std::size_t		path_size		= 0;
-			int				minor_version	= -1;
-			phr_header		headers[3]		= {};
-			std::size_t		headers_size	= sizeof(headers);
-
-			int ret = phr_parse_request
-			(
-				buffer,
-				buffer_0.size() + buffer_1.size(),
-				&method_data,
-				&method_size,
-				&path_data,
-				&path_size,
-				&minor_version,
-				headers,
-				&headers_size,
-				buffer_0.size()
-			);
-
-			io::log::print_read_cycle
-			(
-				buffer_0,
-				buffer_1,
-				buffer_2,
-				{method_data, method_size},
-				{path_data, path_size},
-				{headers, headers_size},
-				minor_version,
-				ret
-			);
-
-			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
+			// [Non buffered read]
+			std::string buffer = std::string(32, '\0');
+			std::size_t readed = co_await stream.async_read_some(asio::buffer(buffer), io::use_coro);
+			fmt::print("readed: {} octets.\n", readed);
+			io::log::print_hex_dump(buffer.data(), buffer.size());
+		}
+		if(cmd == "read_word")
+		{
+			std::string str;
+			co_await (stream >> str);
 		}
 	}
 }

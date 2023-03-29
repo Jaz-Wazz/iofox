@@ -4,6 +4,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <ctype.h>
 #include <exception>
 #include <fmt/core.h>
@@ -93,6 +94,16 @@ namespace io::log
 		return std::span(static_cast<char *>(data), size) | std::views::chunk(chunk_size) | std::views::transform(make_hex_dump_chunk);
 	}
 
+	inline void print_hex_dump(void * data, std::size_t size)
+	{
+		fmt::print("┌─────────────────────────────────────────────────────────────────────────────┐\n");
+		for(auto chunk : io::log::hex_dump(data, size))
+		{
+			fmt::print("│ {} │ {} │ {} │\n", chunk.offset(), chunk.bytes(), chunk.chars());
+		}
+		fmt::print("└─────────────────────────────────────────────────────────────────────────────┘\n");
+	}
+
 	inline auto enumerate(auto range)
 	{
 		return std::views::zip(std::views::iota(std::size_t()), range);
@@ -171,6 +182,45 @@ namespace io::log
 
 		fmt::print("└───────────┴─────────────────────────────────────────────────────────────────────────────┘\n");
 	}
+};
+
+namespace io
+{
+	class stream
+	{
+		prv asio::ip::tcp::socket socket;
+		prv char tail_buffer[128] = {};
+
+		pbl stream(asio::ip::tcp::socket && socket)
+		: socket(std::move(socket)) {}
+
+		pbl auto next_layer() -> asio::ip::tcp::socket &
+		{
+			return socket;
+		}
+
+		pbl auto buffer() -> asio::mutable_buffer
+		{
+			return {tail_buffer, sizeof(tail_buffer)};
+		}
+
+		pbl auto async_read_some(auto buffer, auto token)
+		{
+			return socket.async_read_some(buffer, token);
+		}
+
+		pbl auto operator >>(std::string string) -> io::coro<void>
+		{
+			// read to buffer. (fill buffer)
+			std::size_t readed = co_await socket.async_read_some(buffer(), io::use_coro);
+
+			// parse object in buffer.
+			auto pos = std::string_view(tail_buffer, sizeof(tail_buffer)).find_first_of(' ');
+
+			// construct object.
+			string = std::string_view(tail_buffer, pos);
+		}
+	};
 };
 
 #undef asio
