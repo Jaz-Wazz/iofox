@@ -189,7 +189,9 @@ namespace io
 	class stream
 	{
 		prv asio::ip::tcp::socket socket;
-		prv char tail_buffer[128] = {};
+		prv char buffer[128] {};
+		prv std::size_t pos = 0;
+		prv std::size_t size = 0;
 
 		pbl stream(asio::ip::tcp::socket && socket)
 		: socket(std::move(socket)) {}
@@ -199,26 +201,32 @@ namespace io
 			return socket;
 		}
 
-		pbl auto buffer() -> asio::mutable_buffer
-		{
-			return {tail_buffer, sizeof(tail_buffer)};
-		}
-
 		pbl auto async_read_some(auto buffer, auto token)
 		{
 			return socket.async_read_some(buffer, token);
 		}
 
-		pbl auto operator >>(std::string string) -> io::coro<void>
+		pbl void print_buffers()
 		{
-			// read to buffer. (fill buffer)
-			std::size_t readed = co_await socket.async_read_some(buffer(), io::use_coro);
+			io::log::print_hex_dump(buffer, pos);
+			io::log::print_hex_dump(buffer + pos, size);
+			io::log::print_hex_dump(buffer + pos + size, sizeof(buffer) - pos - size);
+		}
 
-			// parse object in buffer.
-			auto pos = std::string_view(tail_buffer, sizeof(tail_buffer)).find_first_of(' ');
+		pbl auto operator >>(std::string & string) -> io::coro<void>
+		{
+			for(;;)
+			{
+				fmt::print("read internal buffer for object.\n");
+				for(char c : std::span(buffer + pos, size))
+				{
+					pos++, size--;
+					if(c != ' ') string += c; else co_return;
+				}
 
-			// construct object.
-			string = std::string_view(tail_buffer, pos);
+				fmt::print("internal buffer is empty, but object is not complite. Read new chunk.\n");
+				pos = 0, size = co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
+			}
 		}
 	};
 };

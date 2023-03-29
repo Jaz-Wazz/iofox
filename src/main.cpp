@@ -25,7 +25,7 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 	{
 		if(cmd == "print")
 		{
-			io::log::print_hex_dump(stream.buffer().data(), stream.buffer().size());
+			stream.print_buffers();
 		}
 		if(cmd == "read")
 		{
@@ -39,6 +39,7 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 		{
 			std::string str;
 			co_await (stream >> str);
+			fmt::print("readed: '{}'.\n", str);
 		}
 	}
 }
