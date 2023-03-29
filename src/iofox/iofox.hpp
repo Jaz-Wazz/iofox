@@ -173,6 +173,42 @@ namespace io::log
 	}
 };
 
+namespace io
+{
+	class tribuf
+	{
+		prv char buffer[8192] {};
+		prv std::size_t buffer_0_size = 0;
+		prv std::size_t buffer_1_size = 0;
+
+		pbl auto buffer_0() -> asio::mutable_buffer // past
+		{
+			return {buffer, buffer_0_size};
+		}
+
+		pbl auto buffer_1() -> asio::mutable_buffer // current
+		{
+			return {buffer + buffer_0_size, buffer_1_size};
+		}
+
+		pbl auto buffer_2() -> asio::mutable_buffer // future
+		{
+			return {buffer + buffer_0_size + buffer_1_size, sizeof(buffer) - buffer_0_size - buffer_1_size};
+		}
+
+		pbl void move_buffer_2_to_bufer_1(std::size_t size)
+		{
+			buffer_1_size += size;
+		}
+
+		pbl void move_buffer_1_to_bufer_0()
+		{
+			buffer_0_size += buffer_1_size;
+			buffer_1_size = 0;
+		}
+	};
+};
+
 #undef asio
 #undef this_coro
 #undef pbl

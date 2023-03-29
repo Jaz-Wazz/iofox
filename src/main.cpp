@@ -18,19 +18,30 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 {
+	// io::tribuf tribuf;
+
+	// read
+	// std::size_t readed = co_await socket.async_read_some(tribuf.buffer_2(), io::use_coro);
+	// tribuf.move_buffer_2_to_buffer_1(readed);
+	// tribuf.move_future_to_current(readed);
+	// [future] -> [current]
+
+	// analize
+	// auto some_data = tribuf.buffer_1();
+
+	// tribuf.move_buffer_1_to_buffer_0();
+	// tribuf.move_current_to_past();
+	// [current] -> [past]
+
 	fmt::print("connected.\n");
-	char buffer[8192] {};
-	asio::mutable_buffer buffer_0, buffer_1, buffer_2 = asio::buffer(buffer);
+	io::tribuf tribuf;
 
 	for(std::string cmd; std::getline(std::cin, cmd);)
 	{
 		if(cmd == "read")
 		{
-			std::size_t readed = co_await socket.async_read_some(buffer_2, io::use_coro);
-
-			buffer_0 = asio::buffer(buffer, buffer_0.size());
-			buffer_1 = asio::buffer(buffer + buffer_0.size(), readed);
-			buffer_2 = asio::buffer(buffer + buffer_0.size() + readed, sizeof(buffer) - buffer_0.size() - readed);
+			std::size_t readed = co_await socket.async_read_some(tribuf.buffer_2(), io::use_coro);
+			tribuf.move_buffer_2_to_bufer_1(readed);
 
 			const char *	method_data		= nullptr;
 			std::size_t		method_size		= 0;
@@ -42,8 +53,8 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 
 			int ret = phr_parse_request
 			(
-				buffer,
-				buffer_0.size() + buffer_1.size(),
+				static_cast<char *>(tribuf.buffer_0().data()),
+				tribuf.buffer_0().size() + tribuf.buffer_1().size(),
 				&method_data,
 				&method_size,
 				&path_data,
@@ -51,14 +62,14 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 				&minor_version,
 				headers,
 				&headers_size,
-				buffer_0.size()
+				tribuf.buffer_0().size()
 			);
 
 			io::log::print_read_cycle
 			(
-				buffer_0,
-				buffer_1,
-				buffer_2,
+				tribuf.buffer_0(),
+				tribuf.buffer_1(),
+				tribuf.buffer_2(),
 				{method_data, method_size},
 				{path_data, path_size},
 				{headers, headers_size},
@@ -66,7 +77,7 @@ auto session(asio::ip::tcp::socket socket) -> io::coro<void>
 				ret
 			);
 
-			buffer_0 = asio::buffer(buffer_0.data(), buffer_0.size() + readed);
+			tribuf.move_buffer_1_to_bufer_0();
 		}
 	}
 }
