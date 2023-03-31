@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstring>
 #include <iofox/third_party/picohttpparser.h>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -16,46 +18,74 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto session(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	fmt::print("connected.\n");
-	io::stream stream {std::move(socket)};
+#define prv private:
+#define pbl public:
 
-	for(std::string cmd; std::getline(std::cin, cmd);)
+class static_dynamic_buffer
+{
+	prv char buffer[128] = {};
+	prv std::size_t size_zone_consumed = 0;
+	prv std::size_t size_zone_data = 0;
+
+	pbl auto size()		-> std::size_t	{ return size_zone_data;						} // Data chunk size.
+	pbl auto max_size()	-> std::size_t	{ return sizeof(buffer) - size_zone_consumed;	} // Max possibly size.
+	pbl auto capacity()	-> std::size_t	{ return sizeof(buffer) - size_zone_consumed;	} // Max size without allocation.
+
+	pbl auto grow(std::size_t n)
 	{
-		if(cmd == "print")
-		{
-			stream.print_buffers();
-		}
-		if(cmd == "read")
-		{
-			// [Non buffered read]
-			std::string buffer = std::string(32, '\0');
-			std::size_t readed = co_await stream.async_read_some(asio::buffer(buffer), io::use_coro);
-			fmt::print("readed: {} octets.\n", readed);
-			io::log::print_hex_dump(buffer.data(), buffer.size());
-		}
-		if(cmd == "read_word")
-		{
-			std::string str;
-			co_await (stream >> str);
-			fmt::print("readed: '{}'.\n", str);
-		}
+		if(size() + n < max_size()) size_zone_data += n; else throw std::length_error("buffer over-grow");
 	}
-}
 
-auto coro() -> io::coro<void>
-{
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 555}};
-    for(;;) asio::co_spawn(co_await this_coro::executor, session(co_await acceptor.async_accept(asio::use_awaitable)), io::rethrowed);
-}
+	pbl auto data(std::size_t pos, std::size_t n) -> asio::mutable_buffer
+	{
+		return {buffer + size_zone_consumed, (n < size()) ? n : size()};
+	}
+
+	pbl auto consume(std::size_t n)
+	{
+		size_zone_consumed += n;
+		size_zone_data -= n;
+	}
+};
+
+#undef prv
+#undef pbl
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	// stream << request | []{ /* request complite */ };
+	// co_await (stream << request | io::use_coro);
+	// co_await stream.async_write(request, io::use_coro + timeout(6));
+	// if(5 | 6) {}
+
+	static_dynamic_buffer dynamic_buffer;
+
+	for(std::string cmd; std::getline(std::cin, cmd);)
+	{
+		if(cmd == "data")
+		{
+			asio::mutable_buffer buffer = dynamic_buffer.data(0, dynamic_buffer.size());
+			io::log::print_hex_dump(buffer.data(), buffer.size());
+		}
+		if(cmd == "consume")
+		{
+			dynamic_buffer.consume(2);
+		}
+		if(cmd == "write")
+		{
+			dynamic_buffer.grow(2);
+			asio::mutable_buffer buffer = dynamic_buffer.data(dynamic_buffer.size() - 2, 2);
+			std::memcpy(buffer.data(), "xy", 2);
+		}
+		if(cmd == "info")
+		{
+			fmt::print("size: {}\n",		dynamic_buffer.size());
+			fmt::print("max size: {}\n",	dynamic_buffer.max_size());
+			fmt::print("capacity: {}\n",	dynamic_buffer.capacity());
+		}
+	}
+
+	return 0;
 }
 catch(const std::exception & e)
 {
