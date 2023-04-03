@@ -20,8 +20,8 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 auto generate_data_chunk() -> std::string
 {
 	std::string string;
-	// for(int i : std::views::iota(0, 100000)) string += std::to_string(i) + ' ';
-	for(int i : std::views::iota(0, 100'000'000))
+	string.reserve(528888890);
+	for(int i : std::views::iota(0, 60'000'000))
 	{
 		string += fmt::format_int(i).c_str();
 		string += ' ';
