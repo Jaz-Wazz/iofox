@@ -4,6 +4,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <boost/asio/read.hpp>
 #include <chrono>
 #include <fmt/core.h>
 #include <fmt/chrono.h>
@@ -27,22 +28,39 @@ auto reader_a(asio::ip::tcp::socket socket) -> io::coro<void>
 	{
 		std::size_t readed = co_await socket.async_read_some(asio::buffer(data + size, 528888890 - size), io::use_coro);
 		size += readed;
-		fmt::print("[reader 'a'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
+		// fmt::print("[reader 'a'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
 	}
 
 	auto finish = std::chrono::steady_clock::now();
-	fmt::print("Time: {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
-
-	// std::ofstream("test_1.txt").write(data, size);
+	fmt::print("Time 'reader a': {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
+	// std::ofstream("reader_a.txt").write(data, size);
 };
 
-auto coro() -> io::coro<void>
+auto reader_b(asio::ip::tcp::socket socket) -> io::coro<void>
+{
+	char * data = new char[528888890];
+
+	auto start = std::chrono::steady_clock::now();
+	std::size_t readed = co_await asio::async_read(socket, asio::buffer(data, 528888890), io::use_coro);
+	fmt::print("[reader 'b'] - readed: {} bytes.\n", readed);
+	auto finish = std::chrono::steady_clock::now();
+
+	fmt::print("Time 'reader b': {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
+	// std::ofstream("reader_b.txt").write(data, 528888890);
+};
+
+auto open_session() -> io::coro<asio::ip::tcp::socket>
 {
 	asio::ip::tcp::socket socket {co_await this_coro::executor};
 	co_await socket.async_connect({asio::ip::make_address("127.0.0.1"), 555}, io::use_coro);
-	fmt::print("[client] - connected.\n");
+	co_return socket;
+}
 
-	co_await reader_a(std::move(socket));
+auto coro() -> io::coro<void>
+{
+	co_await reader_a(co_await open_session());
+	co_await reader_b(co_await open_session());
+	co_await reader_a(co_await open_session());
 }
 
 int main() try
