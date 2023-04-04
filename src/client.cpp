@@ -22,31 +22,19 @@ auto reader_a(asio::ip::tcp::socket socket) -> io::coro<void>
 	char * data = new char[528888890];
 	std::size_t size = 0;
 
-	auto start = std::chrono::steady_clock::now();
-
 	for(;size != 528888890;)
 	{
 		std::size_t readed = co_await socket.async_read_some(asio::buffer(data + size, 528888890 - size), io::use_coro);
 		size += readed;
 		// fmt::print("[reader 'a'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
 	}
-
-	auto finish = std::chrono::steady_clock::now();
-	fmt::print("Time 'reader a': {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
-	// std::ofstream("reader_a.txt").write(data, size);
 };
 
 auto reader_b(asio::ip::tcp::socket socket) -> io::coro<void>
 {
 	char * data = new char[528888890];
-
-	auto start = std::chrono::steady_clock::now();
 	std::size_t readed = co_await asio::async_read(socket, asio::buffer(data, 528888890), io::use_coro);
 	// fmt::print("[reader 'b'] - readed: {} bytes.\n", readed);
-	auto finish = std::chrono::steady_clock::now();
-
-	fmt::print("Time 'reader b': {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
-	// std::ofstream("reader_b.txt").write(data, 528888890);
 };
 
 auto reader_c(asio::ip::tcp::socket socket) -> io::coro<void>
@@ -54,7 +42,6 @@ auto reader_c(asio::ip::tcp::socket socket) -> io::coro<void>
 	char * data = new char[528888890];
 	std::size_t size = 0;
 
-	auto start = std::chrono::steady_clock::now();
 	for(;size != 528888890;)
 	{
 		auto buffer = asio::buffer(data + size, (528888890 - size > 8192) ? 8192 : 528888890 - size);
@@ -62,10 +49,20 @@ auto reader_c(asio::ip::tcp::socket socket) -> io::coro<void>
 		size += readed;
 		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
 	}
-	auto finish = std::chrono::steady_clock::now();
+};
 
-	fmt::print("Time 'reader c': {}.\n", std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
-	// std::ofstream("reader_c.txt").write(data, 528888890);
+auto reader_d(asio::ip::tcp::socket socket) -> io::coro<void>
+{
+	char * data = new char[528888890];
+	std::size_t size = 0;
+
+	for(;size != 528888890;)
+	{
+		auto buffer = asio::buffer(data + size, (528888890 - size > 128) ? 128 : 528888890 - size);
+		std::size_t readed = co_await socket.async_read_some(buffer, io::use_coro);
+		size += readed;
+		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
+	}
 };
 
 auto open_session() -> io::coro<asio::ip::tcp::socket>
@@ -75,11 +72,20 @@ auto open_session() -> io::coro<asio::ip::tcp::socket>
 	co_return socket;
 }
 
+auto benchmark(auto title, auto callable) -> io::coro<void>
+{
+	auto start = std::chrono::steady_clock::now();
+	co_await callable(co_await open_session());
+	auto finish = std::chrono::steady_clock::now();
+	fmt::print("Benchmark '{}': {}.\n", title, std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
+}
+
 auto coro() -> io::coro<void>
 {
-	co_await reader_a(co_await open_session());
-	co_await reader_b(co_await open_session());
-	co_await reader_c(co_await open_session());
+	co_await benchmark("reader_a", reader_a);
+	co_await benchmark("reader_b", reader_b);
+	co_await benchmark("reader_c", reader_c);
+	co_await benchmark("reader_d", reader_d);
 }
 
 int main() try
