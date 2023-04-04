@@ -1,23 +1,19 @@
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <chrono>
+#include <cstdio>
 #include <fmt/core.h>
 #include <exception>
 #include <fmt/format.h>
-#include <iofox/iofox.hpp>
+#include <fmt/chrono.h>
+#include <fmt/ranges.h>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <ranges>
+#include <sstream>
 #include <string>
+#include <string_view>
 
-namespace asio = boost::asio;			// NOLINT.
-namespace this_coro = asio::this_coro;	// NOLINT.
-
-auto generate_data_chunk() -> std::string
+auto generate_data_chunk_a() -> std::string
 {
 	std::string string;
 	string.reserve(528888890);
@@ -29,35 +25,93 @@ auto generate_data_chunk() -> std::string
 	return string;
 }
 
-auto session(asio::ip::tcp::socket socket, std::string & data_chunk) -> io::coro<void>
+auto generate_data_chunk_b() -> std::string
 {
-	fmt::print("[session] - client connected.\n");
-	std::size_t writed = co_await socket.async_write_some(asio::buffer(data_chunk), io::use_coro);
-	fmt::print("[session] - sended {} octets.\n", writed);
-	fmt::print("[session] - start endless waiting.\n\n", writed);
-	co_await asio::steady_timer(socket.get_executor(), std::chrono::seconds::max()).async_wait(io::use_coro);
+	fmt::memory_buffer buffer;
+	buffer.reserve(528888890);
+	fmt::format_to(std::back_inserter(buffer), "{}", fmt::join(std::views::iota(0, 60'000'000), " "));
+	return "";
 }
 
-auto coro() -> io::coro<void>
+auto generate_data_chunk_c() -> std::string
 {
-	fmt::print("[coro] - generate data chunk...\n");
-	std::string data_chunk = generate_data_chunk();
-	fmt::print("[coro] - data chunk generated, size: '{}' bytes.\n", data_chunk.size());
+    std::string string;
+	string.reserve(528888890);
+    fmt::format_to(std::back_inserter(string), "{}", fmt::join(std::views::iota(0, 60'000'000), " "));
+    return string;
+}
 
-	asio::ip::tcp::acceptor acceptor {co_await this_coro::executor, {asio::ip::tcp::v4(), 555}};
-	for(;;)
+auto generate_data_chunk_d() -> std::string
+{
+    return fmt::format("{}", fmt::join(std::views::iota(0, 60'000'000), " "));
+}
+
+auto generate_data_chunk_e() -> std::string
+{
+	std::string string;
+	string.reserve(528888890);
+
+	for(int i : std::views::iota(0, 60'000'000))
 	{
-		auto socket = co_await acceptor.async_accept(asio::use_awaitable);
-    	asio::co_spawn(co_await this_coro::executor, session(std::move(socket), data_chunk), io::rethrowed);
+		fmt::format_to(std::back_inserter(string), "{} ", i);
 	}
+	return string;
+}
+
+auto generate_data_chunk_f() -> std::string
+{
+	std::string string;
+	string.reserve(528888890);
+	std::stringstream stream {std::move(string)};
+	for(int i : std::views::iota(0, 60'000'000))
+	{
+		fmt::format_to(std::ostreambuf_iterator<char>(stream), "{} ", i);
+	}
+	return std::move(stream.str());
+}
+
+auto generate_data_chunk_g() -> std::string
+{
+	std::stringstream stream;
+	for(int i : std::views::iota(0, 60'000'000))
+	{
+		fmt::format_to(std::ostreambuf_iterator<char>(stream), "{} ", i);
+	}
+	return std::move(stream.str());
+}
+
+auto generate_data_chunk_h() -> std::string
+{
+	std::string string;
+	string.reserve(528888890);
+	std::stringstream stream {std::move(string)};
+	for(int i : std::views::iota(0, 60'000'000))
+	{
+		stream << i << ' ';
+	}
+	return std::move(stream.str());
+}
+
+void benchmark(auto title, auto callable)
+{
+	auto start = std::chrono::steady_clock::now();
+	std::string chunk = callable();
+	auto finish = std::chrono::steady_clock::now();
+	fmt::print("Time '{}': {}.\n", title, std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
+	// std::ofstream(fmt::format("{}.txt", title)) << chunk;
 }
 
 int main() try
 {
-	io::windows::set_asio_locale(io::windows::lang::english);
-	asio::io_context ctx;
-	asio::co_spawn(ctx, coro(), io::rethrowed);
-	return ctx.run();
+	benchmark("generate_data_chunk_a", generate_data_chunk_a);
+	benchmark("generate_data_chunk_b", generate_data_chunk_b);
+	benchmark("generate_data_chunk_c", generate_data_chunk_c);
+	benchmark("generate_data_chunk_d", generate_data_chunk_d);
+	benchmark("generate_data_chunk_e", generate_data_chunk_e);
+	benchmark("generate_data_chunk_f", generate_data_chunk_f);
+	benchmark("generate_data_chunk_g", generate_data_chunk_g);
+	benchmark("generate_data_chunk_h", generate_data_chunk_h);
+	return 0;
 }
 catch(const std::exception & e)
 {
