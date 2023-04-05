@@ -6,6 +6,9 @@
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/coroutine.hpp>
+#include <boost/asio/experimental/coro.hpp>
+#include <boost/asio/experimental/use_coro.hpp>
 #include <chrono>
 #include <cstring>
 #include <fmt/core.h>
@@ -18,118 +21,47 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <variant>
 
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto reader_a(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		std::size_t readed = co_await socket.async_read_some(asio::buffer(data + size, 528888890 - size), io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'a'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
-
-auto reader_b(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t readed = co_await asio::async_read(socket, asio::buffer(data, 528888890), io::use_coro);
-	// fmt::print("[reader 'b'] - readed: {} bytes.\n", readed);
-};
-
-auto reader_c(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		auto buffer = asio::buffer(data + size, (528888890 - size > 8192) ? 8192 : 528888890 - size);
-		std::size_t readed = co_await socket.async_read_some(buffer, io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
-
-auto reader_d(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		auto buffer = asio::buffer(data + size, (528888890 - size > 128) ? 128 : 528888890 - size);
-		std::size_t readed = co_await socket.async_read_some(buffer, io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
+// char extract_char(int where)
+// {
+// 	if constexpr(typeid(where) == typeid(char))
+// 	{
+// 		return where;
+// 	}
+// 	if constexpr(typeid(where) == typeid(io::coro<char>))
+// 	{
+// 		return co_await where;
+// 	}
+// }
 
 auto reader_e(io::isstream stream) -> io::coro<void>
 {
+	// auto y = extract('d');
+
 	char * data = new char[528888890];
 	std::size_t size = 0;
 
-	for(;size != 528888890;)
+	for(;size != 528888890; size++)
 	{
-		data[size] = co_await stream.async_get();
-		size++;
-	}
-}
+		auto v = stream.async_get();
+		data[size] = (v.index() == 0) ? std::get<char>(v) : co_await std::move(std::get<io::coro<char>>(v));
 
-auto reader_f(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	// Object buffer.
-	char * data = new char[528888890];
-	std::size_t size = 0;
+		// valoraw valoraw = stream.async_get();
+		// data[size] = valoraw.contains() ? valoraw.value() : co_await valoraw.awaitable();
+		// data[size] = co_await_potentially(valoraw);
 
-	// Internal buffer.
-	char internal_buffer[4096] {};
-	std::size_t internal_buffer_size = 0;
-
-	for(;size != 528888890;)
-	{
-		internal_buffer_size = co_await socket.async_read_some(asio::buffer(internal_buffer), io::use_coro);
-		std::memcpy(data + size, internal_buffer, internal_buffer_size);
-		size += internal_buffer_size;
-		// fmt::print("[reader_f] - read: {:16}, size: {:16}.\n", internal_buffer_size, size);
-	}
-
-	// std::ofstream("reader_f.txt").write(data, size);
-}
-
-auto get(char c) -> io::coro<char>
-{
-	co_return c;
-}
-
-auto reader_g(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	// Object buffer.
-	volatile char * data = new char[528888890];
-	std::size_t size = 0;
-
-	// Internal buffer.
-	char internal_buffer[4096] {};
-	std::size_t internal_buffer_size = 0;
-
-	for(;size != 528888890;)
-	{
-		internal_buffer_size = co_await socket.async_read_some(asio::buffer(internal_buffer), io::use_coro);
-
-		for(int i = 0; char c : std::span(internal_buffer, internal_buffer_size))
-		{
-			// data[size + i] = co_await get(c);
-			data[size + i] = c;
-		}
-
-		size += internal_buffer_size;
-		// fmt::print("[reader_f] - read: {:16}, size: {:16}.\n", internal_buffer_size, size);
+		// if(auto x = std::get_if<char>(&v))
+		// {
+		// 	data[size] = *x;
+		// }
+		// if(auto x = std::get_if<io::coro<char>>(&v))
+		// {
+		// 	data[size] = co_await std::move(*x);
+		// }
 	}
 }
 
@@ -150,13 +82,7 @@ auto benchmark(auto title, auto callable) -> io::coro<void>
 
 auto coro() -> io::coro<void>
 {
-	// co_await benchmark("reader_a", reader_a);
-	// co_await benchmark("reader_b", reader_b);
-	// co_await benchmark("reader_c", reader_c);
-	// co_await benchmark("reader_d", reader_d);
-	// co_await benchmark("reader_e", reader_e);
-	co_await benchmark("reader_f", reader_f);
-	co_await benchmark("reader_g", reader_g);
+	co_await benchmark("reader_e", reader_e);
 }
 
 int main() try
