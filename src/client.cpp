@@ -26,42 +26,22 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-// char extract_char(int where)
-// {
-// 	if constexpr(typeid(where) == typeid(char))
-// 	{
-// 		return where;
-// 	}
-// 	if constexpr(typeid(where) == typeid(io::coro<char>))
-// 	{
-// 		return co_await where;
-// 	}
-// }
-
 auto reader_e(io::isstream stream) -> io::coro<void>
 {
-	// auto y = extract('d');
-
 	char * data = new char[528888890];
 	std::size_t size = 0;
 
 	for(;size != 528888890; size++)
 	{
-		auto v = stream.async_get();
-		data[size] = (v.index() == 0) ? std::get<char>(v) : co_await std::move(std::get<io::coro<char>>(v));
-
-		// valoraw valoraw = stream.async_get();
-		// data[size] = valoraw.contains() ? valoraw.value() : co_await valoraw.awaitable();
-		// data[size] = co_await_potentially(valoraw);
-
-		// if(auto x = std::get_if<char>(&v))
-		// {
-		// 	data[size] = *x;
-		// }
-		// if(auto x = std::get_if<io::coro<char>>(&v))
-		// {
-		// 	data[size] = co_await std::move(*x);
-		// }
+		if(auto chr = stream.get())
+		{
+			data[size] = chr.value();
+		}
+		else
+		{
+			co_await stream.async_fill();
+			data[size] = stream.get().value();
+		}
 	}
 }
 

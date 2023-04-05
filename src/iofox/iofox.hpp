@@ -9,6 +9,7 @@
 #include <exception>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -254,22 +255,19 @@ namespace io
 
 		prv std::size_t debug_size = 0;
 
-		pbl auto async_get() -> std::variant<char, io::coro<char>>
+		pbl auto async_fill() -> io::coro<void>
+		{
+			pos = 0, size = co_await async_read_some(asio::buffer(buffer), io::use_coro);
+		}
+
+		pbl auto get() -> std::optional<char>
 		{
 			if(size != 0)
 			{
 				pos++, size--;
 				return buffer[pos - 1];
 			}
-			else
-			{
-				return [this] -> io::coro<char>
-				{
-					pos = 0, size = co_await async_read_some(asio::buffer(buffer), io::use_coro);
-					pos++, size--;
-					co_return buffer[pos - 1];
-				}();
-			}
+			else return {};
 		}
 	};
 }
