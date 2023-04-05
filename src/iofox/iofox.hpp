@@ -232,7 +232,28 @@ namespace io
 		}
 	};
 
-	class isstream: private asio::ip::tcp::socket
+	class valoraw : private std::variant<char, asio::awaitable<char>>
+	{
+		pbl valoraw(char c): std::variant<char, asio::awaitable<char>>(c) {}
+		pbl valoraw(asio::awaitable<char> && awaitable): std::variant<char, asio::awaitable<char>>(std::move(awaitable)) {}
+
+		pbl bool contains()
+		{
+			return index() == 0;
+		}
+
+		pbl auto value() -> char
+		{
+			return std::get<0>(*this);
+		}
+
+		pbl auto awaitable() -> asio::awaitable<char>
+		{
+			return std::move(std::get<1>(*this));
+		}
+	};
+
+	class isstream : private asio::ip::tcp::socket
 	{
 		prv char buffer[8192] {};
 		prv std::size_t pos = 0;
@@ -255,19 +276,19 @@ namespace io
 
 		prv std::size_t debug_size = 0;
 
-		pbl auto async_fill() -> io::coro<void>
-		{
-			pos = 0, size = co_await async_read_some(asio::buffer(buffer), io::use_coro);
-		}
-
-		pbl auto get() -> std::optional<char>
+		pbl auto async_get() -> io::valoraw
 		{
 			if(size != 0)
 			{
 				pos++, size--;
 				return buffer[pos - 1];
 			}
-			else return {};
+			else return [this] -> io::coro<char>
+			{
+				pos = 0, size = co_await async_read_some(asio::buffer(buffer), io::use_coro);
+				pos++, size--;
+				co_return buffer[pos - 1];
+			}();
 		}
 	};
 }

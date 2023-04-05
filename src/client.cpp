@@ -33,15 +33,8 @@ auto reader_e(io::isstream stream) -> io::coro<void>
 
 	for(;size != 528888890; size++)
 	{
-		if(auto chr = stream.get())
-		{
-			data[size] = chr.value();
-		}
-		else
-		{
-			co_await stream.async_fill();
-			data[size] = stream.get().value();
-		}
+		auto valoraw = stream.async_get();
+		data[size] = valoraw.contains() ? valoraw.value() : co_await valoraw.awaitable();
 	}
 }
 
