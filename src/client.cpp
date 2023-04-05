@@ -1,11 +1,17 @@
+#include <boost/asio/async_result.hpp>
+#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/completion_condition.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/compose.hpp>
+#include <boost/asio/experimental/co_composed.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <chrono>
 #include <cstring>
 #include <fmt/core.h>
@@ -22,141 +28,99 @@
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
 
-auto reader_a(asio::ip::tcp::socket socket) -> io::coro<void>
+template <asio::completion_token_for<void(char)> CompletionToken>
+auto async_foo_a(CompletionToken && token)
 {
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
+	return asio::async_initiate<CompletionToken, void(char)>([=](auto completion_handler)
 	{
-		std::size_t readed = co_await socket.async_read_some(asio::buffer(data + size, 528888890 - size), io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'a'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
-
-auto reader_b(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t readed = co_await asio::async_read(socket, asio::buffer(data, 528888890), io::use_coro);
-	// fmt::print("[reader 'b'] - readed: {} bytes.\n", readed);
-};
-
-auto reader_c(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		auto buffer = asio::buffer(data + size, (528888890 - size > 8192) ? 8192 : 528888890 - size);
-		std::size_t readed = co_await socket.async_read_some(buffer, io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
-
-auto reader_d(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		auto buffer = asio::buffer(data + size, (528888890 - size > 128) ? 128 : 528888890 - size);
-		std::size_t readed = co_await socket.async_read_some(buffer, io::use_coro);
-		size += readed;
-		// fmt::print("[reader 'c'] - readed: {:16} bytes, size: {:16} bytes.\n", readed, size);
-	}
-};
-
-auto reader_e(io::isstream stream) -> io::coro<void>
-{
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	for(;size != 528888890;)
-	{
-		data[size] = co_await stream.async_get();
-		size++;
-	}
+		completion_handler('a');
+	}, token);
 }
 
-auto reader_f(asio::ip::tcp::socket socket) -> io::coro<void>
+template <asio::completion_token_for<void(char)> CompletionToken>
+auto async_foo_b(CompletionToken && token)
 {
-	// Object buffer.
-	char * data = new char[528888890];
-	std::size_t size = 0;
-
-	// Internal buffer.
-	char internal_buffer[4096] {};
-	std::size_t internal_buffer_size = 0;
-
-	for(;size != 528888890;)
+	return asio::async_initiate<CompletionToken, void(char)>([=](auto completion_handler)
 	{
-		internal_buffer_size = co_await socket.async_read_some(asio::buffer(internal_buffer), io::use_coro);
-		std::memcpy(data + size, internal_buffer, internal_buffer_size);
-		size += internal_buffer_size;
-		// fmt::print("[reader_f] - read: {:16}, size: {:16}.\n", internal_buffer_size, size);
-	}
-
-	// std::ofstream("reader_f.txt").write(data, size);
-}
-
-auto get(char c) -> io::coro<char>
-{
-	co_return c;
-}
-
-auto reader_g(asio::ip::tcp::socket socket) -> io::coro<void>
-{
-	// Object buffer.
-	volatile char * data = new char[528888890];
-	std::size_t size = 0;
-
-	// Internal buffer.
-	char internal_buffer[4096] {};
-	std::size_t internal_buffer_size = 0;
-
-	for(;size != 528888890;)
-	{
-		internal_buffer_size = co_await socket.async_read_some(asio::buffer(internal_buffer), io::use_coro);
-
-		for(int i = 0; char c : std::span(internal_buffer, internal_buffer_size))
+		boost::asio::post([completion_handler = std::move(completion_handler)] mutable
 		{
-			// data[size + i] = co_await get(c);
-			data[size + i] = c;
-		}
+			completion_handler('b');
+		});
+	}, token);
+}
 
-		size += internal_buffer_size;
-		// fmt::print("[reader_f] - read: {:16}, size: {:16}.\n", internal_buffer_size, size);
+template <asio::completion_token_for<void(char)> CompletionToken>
+auto async_foo_c(auto & ctx, CompletionToken && token)
+{
+	return asio::async_initiate<CompletionToken, void(char)>([=](auto completion_handler)
+	{
+		boost::asio::post(ctx, [completion_handler = std::move(completion_handler)] mutable
+		{
+			completion_handler('c');
+		});
+	}, token);
+}
+
+template <typename CompletionToken>
+auto async_foo_d(CompletionToken && token)
+{
+	return asio::async_compose<CompletionToken, void(char)>([](auto & self)
+	{
+		self.complete('d');
+	}, token);
+}
+
+struct async_f_implementation
+{
+	template <typename Self>
+	void operator()(Self & self, boost::system::error_code error = {}, std::size_t n = 0)
+	{
+		self.complete(error, 15);
 	}
+};
+
+template <typename CompletionToken>
+auto async_foo_f(CompletionToken&& token)
+-> decltype(asio::async_compose<CompletionToken, void(boost::system::error_code, std::size_t)>(std::declval<async_f_implementation>(), token))
+{
+	return boost::asio::async_compose<CompletionToken, void(boost::system::error_code, std::size_t)>(async_f_implementation{}, token);
 }
 
-auto open_session() -> io::coro<asio::ip::tcp::socket>
+template <typename CompletionToken>
+auto async_foo_g(CompletionToken&& token)
 {
-	asio::ip::tcp::socket socket {co_await this_coro::executor};
-	co_await socket.async_connect({asio::ip::make_address("127.0.0.1"), 555}, io::use_coro);
-	co_return socket;
-}
-
-auto benchmark(auto title, auto callable) -> io::coro<void>
-{
-	auto start = std::chrono::steady_clock::now();
-	co_await callable(co_await open_session());
-	auto finish = std::chrono::steady_clock::now();
-	fmt::print("Benchmark '{}': {}.\n", title, std::chrono::duration_cast<std::chrono::milliseconds>(finish - start));
+	return asio::async_initiate<CompletionToken, void(boost::system::error_code)>(
+		asio::experimental::co_composed([](auto state) -> void
+        {
+			state.reset_cancellation_state(boost::asio::enable_terminal_cancellation());
+			boost::system::error_code error = {};
+            co_yield state.complete(error);
+        }), token);
 }
 
 auto coro() -> io::coro<void>
 {
-	// co_await benchmark("reader_a", reader_a);
-	// co_await benchmark("reader_b", reader_b);
-	// co_await benchmark("reader_c", reader_c);
-	// co_await benchmark("reader_d", reader_d);
-	// co_await benchmark("reader_e", reader_e);
-	co_await benchmark("reader_f", reader_f);
-	co_await benchmark("reader_g", reader_g);
+	// for(;;) async_foo_a([](char c){ fmt::print("{}", c); });
+	// for(;;) fmt::print("{}", co_await async_foo_a(io::use_coro));
+
+	// for(;;) async_foo_b([](char c){ fmt::print("{}", c); });
+	// for(;;) fmt::print("{}", co_await async_foo_b(io::use_coro));
+
+	// auto ctx = co_await this_coro::executor;
+	// for(;;) async_foo_c(ctx, [](char c){ fmt::print("{}", c); });
+	// for(;;) fmt::print("{}", co_await async_foo_c(ctx, io::use_coro));
+
+	// for(;;) async_foo_d([](char c){ fmt::print("{}", c); });
+	// for(;;) fmt::print("{}", co_await async_foo_d(io::use_coro));
+
+	// for(;;) async_foo_f([](boost::system::error_code ec, std::size_t c){ fmt::print("{}", c); });
+	// for(;;) fmt::print("{}", co_await async_foo_f(io::use_coro));
+	// for(;;) std::size_t i = co_await async_foo_f(io::use_coro);
+
+	// for(;;) async_foo_g([](boost::system::error_code ec){ fmt::print("g"); });
+	// for(;;) co_await async_foo_g(io::use_coro);
+
+	co_return;
 }
 
 int main() try
