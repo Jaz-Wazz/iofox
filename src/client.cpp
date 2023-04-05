@@ -1,3 +1,4 @@
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/completion_condition.hpp>
 #include <boost/asio/io_context.hpp>
@@ -10,6 +11,7 @@
 #include <boost/asio/experimental/coro.hpp>
 #include <boost/asio/experimental/use_coro.hpp>
 #include <chrono>
+#include <coroutine>
 #include <cstring>
 #include <fmt/core.h>
 #include <fmt/chrono.h>
@@ -25,6 +27,38 @@
 
 namespace asio = boost::asio;			// NOLINT.
 namespace this_coro = asio::this_coro;	// NOLINT.
+
+// class sas
+// {
+// 	void operator co_await() {}
+// 	// void await_transform(sas s) {}
+// };
+
+// class co: public asio::awaitable<void>
+// {
+// 	public: using asio::awaitable<void>::executor_type;
+// 	public: using asio::awaitable<void>::value_type;
+// 	// public: using asio::awaitable<void>::awaitable;
+// 	public: co(asio::awaitable<void> && aw): asio::awaitable<void>(std::move(aw)) {}
+// 	public: co & operator co_await() { fmt::print("sas.\n"); return *this; }
+// };
+
+// template <typename... T> class std::coroutine_traits<co, T...>: public std::coroutine_traits<asio::awaitable<void>>
+// {
+// 	public: using std::coroutine_traits<asio::awaitable<void>>::coroutine_traits;
+// 	public: using std::coroutine_traits<asio::awaitable<void>>::promise_type;
+// };
+
+// void operator co_await(sas s) { fmt::print("sas.\n"); }
+
+// auto x(asio::ip::tcp::socket socket) -> co
+// {
+// 	std::string buffer;
+// 	co_await socket.async_read_some(asio::buffer(buffer), io::use_coro);
+// 	co_return;
+// }
+
+// auto xxx() -> co { fmt::print("sis.\n"); co_return; }
 
 auto reader_e(io::isstream stream) -> io::coro<void>
 {
