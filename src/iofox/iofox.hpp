@@ -229,7 +229,44 @@ namespace io
 			}
 		}
 	};
-};
+
+	class isstream: private asio::ip::tcp::socket
+	{
+		prv char buffer[4096] {};
+		prv std::size_t pos = 0;
+		prv std::size_t size = 0;
+
+		pbl isstream(asio::ip::tcp::socket && socket)
+		: asio::ip::tcp::socket(std::move(socket)) {}
+
+		pbl auto next_layer() -> asio::ip::tcp::socket &
+		{
+			return *this;
+		}
+
+		pbl void print_buffers()
+		{
+			io::log::print_hex_dump(buffer, pos);
+			io::log::print_hex_dump(buffer + pos, size);
+			io::log::print_hex_dump(buffer + pos + size, sizeof(buffer) - pos - size);
+		}
+
+		prv std::size_t debug_size = 0;
+
+		pbl auto async_get() -> io::coro<char>
+		{
+			if(size == 0)
+			{
+				pos = 0, size = co_await async_read_some(asio::buffer(buffer), io::use_coro);
+				// fmt::print("[isstream] - read chunk: {:16}, size: {:16}.\n", size, debug_size);
+				// debug_size += size;
+			}
+			pos++, size--;
+			// fmt::print("[isstream] - get: {}.\n", buffer[pos - 1]);
+			co_return buffer[pos - 1];
+		}
+	};
+}
 
 #undef asio
 #undef this_coro
