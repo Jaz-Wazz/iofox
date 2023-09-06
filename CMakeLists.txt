@@ -9,10 +9,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 endif()
 
 # Find libs.
-find_package("Boost" REQUIRED "system" "json")
+find_package("Boost" REQUIRED "system" "json" "url")
 find_package("fmt" REQUIRED)
-find_package("boringssl" REQUIRED)
-find_package("uriparser" REQUIRED)
+find_package("OpenSSL" REQUIRED)
 
 # Find sources.
 file(GLOB_RECURSE src "src/*")
@@ -32,10 +31,12 @@ target_include_directories("iofox" PUBLIC "src")
 target_link_libraries("iofox" PRIVATE
 	Boost::system
 	Boost::json
+	Boost::url
 	fmt::fmt
-	boringssl::ssl
-	boringssl::crypto
-	uriparser::uriparser
+	OpenSSL::SSL
+	OpenSSL::Crypto
+	ws2_32
+	wsock32
 )
 
 # Add macros.

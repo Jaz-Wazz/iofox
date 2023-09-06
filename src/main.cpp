@@ -14,7 +14,8 @@ namespace this_coro = asio::this_coro;	// NOLINT.
 
 auto coro() -> io::coro<void>
 {
-	auto response = co_await io::http::send("POST", "https://httpbin.org/post", {{"transfer-encoding", "chunked"}}, "somebody");
+	io::http::request<void> request {"POST", "/post", {{"Host", "httpbin.org"}}};
+	auto response = co_await io::http::send("https://httpbin.org", request);
 	std::cout << response << '\n';
 }
 
