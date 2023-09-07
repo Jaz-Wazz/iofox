@@ -35,7 +35,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 # [Target] - Macros.
-target_compile_definitions("iofox" PRIVATE
+target_compile_definitions(${PROJECT_NAME} PRIVATE
 	BOOST_ASIO_NO_DEPRECATED
 	BOOST_ASIO_HAS_CO_AWAIT
 )
