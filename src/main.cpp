@@ -1,7 +1,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <iofox/core.hpp>
 #include <fmt/core.h>
-#include <iofox.hpp>
 
 namespace asio { using namespace boost::asio; }
 
