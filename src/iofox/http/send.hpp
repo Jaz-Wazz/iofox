@@ -9,6 +9,7 @@
 #include <boost/asio/this_coro.hpp>
 #include <boost/url/urls.hpp>
 #include <iofox/core.hpp>
+#include <iofox/http/proxy.hpp>
 #include <string_view>
 #include <stdexcept>
 #include <chrono>
