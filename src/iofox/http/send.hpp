@@ -8,8 +8,10 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/url/urls.hpp>
-#include <iofox/core.hpp>
+#include <iofox/http/response.hpp>
+#include <iofox/http/request.hpp>
 #include <iofox/http/proxy.hpp>
+#include <iofox/core.hpp>
 #include <string_view>
 #include <stdexcept>
 #include <chrono>
