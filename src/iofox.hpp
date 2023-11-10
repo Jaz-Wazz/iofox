@@ -485,7 +485,7 @@ namespace io::http
 	}
 
 	template <typename T = std::string>
-	inline auto send
+	auto send
 	(
 		const std::string_view url,
 		const auto & request,
@@ -495,6 +495,14 @@ namespace io::http
 	{
 		co_return co_await io::http::send<T>(boost::url(url), request, timeout);
 	}
+
+	extern template auto send<std::string>
+	(
+		const std::string_view url,
+		const io::http::request<void> & request,
+		const std::chrono::steady_clock::duration timeout
+	)
+	-> io::coro<io::http::response<std::string>>;
 
 	template <typename T = std::string>
 	inline auto send
