@@ -35,8 +35,6 @@
 #include <boost/core/noncopyable.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <boost/url/urls.hpp>
-#include <concepts>
-#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -44,14 +42,12 @@
 #include <ios>
 #include <sstream>
 #include <string_view>
-#include <system_error>
 #include <type_traits>
 #include <fmt/core.h>
 #include <openssl/tls1.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <variant>
 #include <utility>
 #include <winnt.h>
 
