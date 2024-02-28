@@ -22,4 +22,5 @@ if(WIN32)
 endif()
 
 include("Catch")
+enable_testing()
 catch_discover_tests(${PROJECT_NAME})
