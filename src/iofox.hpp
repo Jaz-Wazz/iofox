@@ -41,13 +41,13 @@
 #include <type_traits>
 #include <fmt/core.h>
 #include <openssl/tls1.h>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 // iofox
 #include <iofox/coro.hpp>
+#include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
 
 #define asio		boost::asio
@@ -55,32 +55,6 @@
 #define this_coro	asio::this_coro
 #define pbl			public:
 #define prv			private:
-
-namespace io
-{
-	// Service object - make T unique for any executors. [async_local c# alternative].
-	template <typename T> class service: boost::noncopyable
-	{
-		pbl explicit service() {}
-
-		prv class serv: public asio::execution_context::service, public std::optional<T>
-		{
-			pbl using key_type = serv;
-			pbl using id = serv;
-			pbl serv(asio::execution_context & ctx): asio::execution_context::service(ctx) {}
-			pbl void shutdown() {}
-		};
-
-		pbl auto get_or_make(auto... args) -> io::coro<std::reference_wrapper<T>>
-		{
-			auto && context = (co_await this_coro::executor).context();
-			if(!asio::has_service<serv>(context)) asio::make_service<serv>(context);
-			serv & s = asio::use_service<serv>(context);
-			if(!s) s.emplace(std::forward<decltype(args)>(args)...);
-			co_return s.value();
-		}
-	};
-}
 
 namespace io::dns
 {
