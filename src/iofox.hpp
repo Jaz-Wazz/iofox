@@ -51,6 +51,7 @@
 #include <iofox/rethrowed.hpp>
 #include <iofox/dns.hpp>
 #include <iofox/ssl.hpp>
+#include <iofox/https.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
@@ -71,35 +72,6 @@ namespace io::meta
 	template <>						struct make_body_type_impl<std::string>	{ using type = beast::http::string_body;							};
 	template <vector_one_byte T>	struct make_body_type_impl<T>			{ using type = beast::http::vector_body<typename T::value_type>;	};
 	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
-}
-
-namespace io
-{
-	inline auto open_https_stream(const asio::any_io_executor & executor, asio::ssl::context & context, const std::string & host)
-	-> io::coro<beast::ssl_stream<beast::tcp_stream>>
-	{
-		// Namespaces.
-		using namespace std::chrono_literals;
-
-		// Create stream.
-		beast::ssl_stream<beast::tcp_stream> stream {executor, context};
-
-		// Connect.
-		stream.next_layer().expires_after(19s);
-		co_await stream.next_layer().async_connect(co_await io::dns::resolve("https", host), io::use_coro);
-		stream.next_layer().expires_never();
-
-		// Handshake.
-		co_await io::ssl::handshake_http_client(stream, host);
-
-		// Return stream.
-		co_return stream;
-	}
-
-	inline auto open_https_stream(const std::string & host) -> io::coro<beast::ssl_stream<beast::tcp_stream>>
-	{
-		co_return co_await io::open_https_stream(co_await this_coro::executor, co_await io::ssl::context(), host);
-	}
 }
 
 namespace io::http
