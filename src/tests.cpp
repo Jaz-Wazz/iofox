@@ -3,9 +3,17 @@
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
 
+// Boost.Beast.
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/error.hpp>
+
+// Stl.
+#include <cstdint>
+#include <string>
+#include <vector>
+
 // Other.
 #include <catch2/catch_test_macros.hpp>
-#include <boost/beast/http/error.hpp>
 #include <fmt/core.h>
 #include <iofox.hpp>
 
@@ -41,7 +49,27 @@ TEST_CASE("service_mechanic")
 
 TEST_CASE("request")
 {
-	io::http::request<std::string> request;
-	request.body() = "some_string";
-	REQUIRE(typeid(request.body()) == typeid(std::string));
+	SECTION("void")
+	{
+		io::http::request request;
+		REQUIRE(typeid(request.body()) == typeid(boost::beast::http::empty_body::value_type));
+	}
+
+	SECTION("std::string")
+	{
+		io::http::request<std::string> request;
+		REQUIRE(typeid(request.body()) == typeid(std::string));
+	}
+
+	SECTION("std::vector<char>")
+	{
+		io::http::request<std::vector<char>> request;
+		REQUIRE(typeid(request.body()) == typeid(std::vector<char>));
+	}
+
+	SECTION("std::vector<std::int8_t>")
+	{
+		io::http::request<std::vector<std::int8_t>> request;
+		REQUIRE(typeid(request.body()) == typeid(std::vector<std::int8_t>));
+	}
 }
