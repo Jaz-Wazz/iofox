@@ -36,10 +36,7 @@
 #include <boost/system/detail/error_code.hpp>
 #include <boost/url/urls.hpp>
 #include <exception>
-#include <filesystem>
-#include <fstream>
 #include <initializer_list>
-#include <ios>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
@@ -339,110 +336,6 @@ namespace io::http
 			fmt::print("[response] - {}\n", (std::stringstream() << *this).str());
 		}
 	};
-
-	// Basic request header object.
-	class request_header: public beast::http::request_header<>
-	{
-		prv using base = beast::http::request_header<>;
-		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
-
-		pbl using base::operator=;
-		pbl using base::operator[];
-
-		pbl request_header(std::string method = "GET", std::string target = "/", header_list headers = {})
-		{
-			this->method_string(method);
-			this->target(target);
-			for(auto && [header, value] : headers) this->insert(header, value);
-		}
-
-		pbl request_header(beast::http::request_header<> && header): base(std::move(header)) {}
-	};
-
-	// Basic response header object.
-	class response_header: public beast::http::response_header<>
-	{
-		prv using base = beast::http::response_header<>;
-		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
-
-		pbl using base::operator=;
-		pbl using base::operator[];
-
-		pbl response_header(unsigned int result = 200, header_list headers = {})
-		{
-			this->result(result);
-			for(auto && [header, value] : headers) this->insert(header, value);
-		}
-
-		pbl response_header(beast::http::response_header<> && header): base(std::move(header)) {}
-	};
-
-	class connection_dumped: public std::exception
-	{
-		pbl const std::string request;
-		pbl const std::string response;
-
-		pbl connection_dumped(const auto & request, const auto & response)
-		: request((std::stringstream() << request).str()), response((std::stringstream() << response).str()) {}
-
-		pbl auto what() const noexcept -> const char * override
-		{
-			return "connection_dumped";
-		}
-
-		pbl void save_dump(std::filesystem::path path) const
-		{
-			std::ofstream(path, std::ios::binary) << request << '\n' << response << '\n';
-		}
-	};
-}
-
-namespace io::http::proxy
-{
-	class bad_ssl_tunnel: public std::exception
-	{
-		prv int value;
-
-		pbl bad_ssl_tunnel(int code)
-		: value(code) {}
-
-		auto what() const noexcept -> const char *
-		{
-			return "bad_ssl_tunnel";
-		}
-
-		auto code() const -> const int
-		{
-			return value;
-		}
-	};
-
-	inline auto open_ssl_tunnel
-	(
-		beast::tcp_stream & stream,
-		std::string host,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	) -> io::coro<beast::ssl_stream<beast::tcp_stream>>
-	{
-		stream.expires_after(timeout);
-
-		// Send connect request.
-		io::http::request request {"CONNECT", host + ":443"};
-		co_await beast::http::async_write(stream, request, io::use_coro);
-
-		// Read connect response headers.
-		beast::flat_buffer buffer;
-		beast::http::response_parser<beast::http::empty_body> parser;
-		co_await beast::http::async_read_header(stream, buffer, parser, io::use_coro);
-
-		stream.expires_never();
-
-		// Check status.
-		if(parser.get().result_int() != 200) throw bad_ssl_tunnel(parser.get().result_int());
-
-		// Construct overlying stream.
-		co_return beast::ssl_stream<beast::tcp_stream>(std::move(stream), co_await io::ssl::context());
-	}
 }
 
 namespace io::http
@@ -499,42 +392,6 @@ namespace io::http
 		const std::chrono::steady_clock::duration timeout
 	)
 	-> io::coro<io::http::response<std::string>>;
-
-	template <typename T = std::string>
-	inline auto send
-	(
-		const boost::url proxy,
-		const boost::url url,
-		const auto & request,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	)
-	-> io::coro<io::http::response<T>>
-	{
-		if(proxy.scheme() != "https") throw std::runtime_error("unsupported_proxy_protocol");
-		if(url.scheme() != "https") throw std::runtime_error("unsupported_protocol");
-
-		beast::tcp_stream stream {co_await this_coro::executor};
-		stream.expires_after(std::chrono::seconds(14));
-		co_await stream.async_connect({asio::ip::make_address(proxy.host()), proxy.port_number()}, io::use_coro);
-		stream.expires_never();
-
-		beast::ssl_stream<beast::tcp_stream> tunnel = co_await io::http::proxy::open_ssl_tunnel(stream, url.host());
-		co_await io::ssl::handshake_http_client(tunnel, url.host());
-		co_return co_await io::http::send<T>(tunnel, request, timeout);
-	}
-
-	template <typename T = std::string>
-	inline auto send
-	(
-		const boost::url proxy,
-		const std::string_view url,
-		const auto & request,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	)
-	-> io::coro<io::http::response<T>>
-	{
-		co_return co_await io::http::send<T>(proxy, boost::url(url), request, timeout);
-	};
 }
 
 namespace io::error
