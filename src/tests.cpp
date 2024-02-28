@@ -21,6 +21,7 @@
 #include <iofox/error.hpp>
 #include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
+#include <iofox/http.hpp>
 
 // other
 #include <catch2/catch_test_macros.hpp>
