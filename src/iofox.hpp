@@ -397,54 +397,6 @@ namespace io::http
 	};
 }
 
-namespace io::http::proxy
-{
-	class bad_ssl_tunnel: public std::exception
-	{
-		prv int value;
-
-		pbl bad_ssl_tunnel(int code)
-		: value(code) {}
-
-		auto what() const noexcept -> const char *
-		{
-			return "bad_ssl_tunnel";
-		}
-
-		auto code() const -> const int
-		{
-			return value;
-		}
-	};
-
-	inline auto open_ssl_tunnel
-	(
-		beast::tcp_stream & stream,
-		std::string host,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	) -> io::coro<beast::ssl_stream<beast::tcp_stream>>
-	{
-		stream.expires_after(timeout);
-
-		// Send connect request.
-		io::http::request request {"CONNECT", host + ":443"};
-		co_await beast::http::async_write(stream, request, io::use_coro);
-
-		// Read connect response headers.
-		beast::flat_buffer buffer;
-		beast::http::response_parser<beast::http::empty_body> parser;
-		co_await beast::http::async_read_header(stream, buffer, parser, io::use_coro);
-
-		stream.expires_never();
-
-		// Check status.
-		if(parser.get().result_int() != 200) throw bad_ssl_tunnel(parser.get().result_int());
-
-		// Construct overlying stream.
-		co_return beast::ssl_stream<beast::tcp_stream>(std::move(stream), co_await io::ssl::context());
-	}
-}
-
 namespace io::http
 {
 	template <typename T = std::string>
@@ -499,42 +451,6 @@ namespace io::http
 		const std::chrono::steady_clock::duration timeout
 	)
 	-> io::coro<io::http::response<std::string>>;
-
-	template <typename T = std::string>
-	inline auto send
-	(
-		const boost::url proxy,
-		const boost::url url,
-		const auto & request,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	)
-	-> io::coro<io::http::response<T>>
-	{
-		if(proxy.scheme() != "https") throw std::runtime_error("unsupported_proxy_protocol");
-		if(url.scheme() != "https") throw std::runtime_error("unsupported_protocol");
-
-		beast::tcp_stream stream {co_await this_coro::executor};
-		stream.expires_after(std::chrono::seconds(14));
-		co_await stream.async_connect({asio::ip::make_address(proxy.host()), proxy.port_number()}, io::use_coro);
-		stream.expires_never();
-
-		beast::ssl_stream<beast::tcp_stream> tunnel = co_await io::http::proxy::open_ssl_tunnel(stream, url.host());
-		co_await io::ssl::handshake_http_client(tunnel, url.host());
-		co_return co_await io::http::send<T>(tunnel, request, timeout);
-	}
-
-	template <typename T = std::string>
-	inline auto send
-	(
-		const boost::url proxy,
-		const std::string_view url,
-		const auto & request,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	)
-	-> io::coro<io::http::response<T>>
-	{
-		co_return co_await io::http::send<T>(proxy, boost::url(url), request, timeout);
-	};
 }
 
 namespace io::error
