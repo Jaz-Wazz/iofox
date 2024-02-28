@@ -73,3 +73,30 @@ TEST_CASE("request")
 		REQUIRE(typeid(request.body()) == typeid(std::vector<std::int8_t>));
 	}
 }
+
+TEST_CASE("response")
+{
+	SECTION("void")
+	{
+		io::http::response response;
+		REQUIRE(typeid(response.body()) == typeid(boost::beast::http::empty_body::value_type));
+	}
+
+	SECTION("std::string")
+	{
+		io::http::response<std::string> response;
+		REQUIRE(typeid(response.body()) == typeid(std::string));
+	}
+
+	SECTION("std::vector<char>")
+	{
+		io::http::response<std::vector<char>> response;
+		REQUIRE(typeid(response.body()) == typeid(std::vector<char>));
+	}
+
+	SECTION("std::vector<std::int8_t>")
+	{
+		io::http::response<std::vector<std::int8_t>> response;
+		REQUIRE(typeid(response.body()) == typeid(std::vector<std::int8_t>));
+	}
+}
