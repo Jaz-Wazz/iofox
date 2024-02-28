@@ -50,62 +50,13 @@
 #include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
 #include <iofox/dns.hpp>
+#include <iofox/ssl.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
 #define this_coro	asio::this_coro
 #define pbl			public:
 #define prv			private:
-
-namespace io::ssl
-{
-	// Take ssl context instanse from context-global service.
-	inline auto context() -> io::coro<std::reference_wrapper<asio::ssl::context>>
-	{
-		io::service<asio::ssl::context> service;
-		co_return co_await service.get_or_make(asio::ssl::context::tls);
-	}
-
-	// Set hostname tls extension in stream.
-	constexpr void set_tls_extension_hostname(auto & stream, std::string host)
-	{
-		auto status = SSL_set_tlsext_host_name(stream.native_handle(), host.c_str());
-		if(status == SSL_TLSEXT_ERR_ALERT_FATAL)
-		{
-			// [FIXME] - Use normal error handling in future.
-			throw std::runtime_error(fmt::format("setting tls extension error, code: {}", status));
-		}
-	}
-
-	inline auto handshake_http_client
-	(
-		beast::ssl_stream<beast::tcp_stream> & stream,
-		const std::string & host,
-		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	) -> io::coro<void>
-	{
-		// Set host name extension.
-		io::ssl::set_tls_extension_hostname(stream, host);
-
-		// Verify certificate hostname.
-		stream.set_verify_callback(asio::ssl::host_name_verification(host));
-
-		// Handshake.
-		stream.next_layer().expires_after(timeout);
-		co_await stream.async_handshake(asio::ssl::stream_base::client, io::use_coro);
-		stream.next_layer().expires_never();
-	}
-
-	inline void load_ca_certificates(auto & executor, std::string path)
-	{
-		asio::co_spawn(executor, [=]() -> io::coro<void>
-		{
-			asio::ssl::context & ctx = co_await io::ssl::context();
-			ctx.load_verify_file(path);
-			ctx.set_verify_mode(asio::ssl::verify_peer);
-		}, io::rethrowed);
-	}
-}
 
 namespace io::meta
 {
