@@ -49,23 +49,13 @@
 #include <iofox/coro.hpp>
 #include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
+#include <iofox/dns.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
 #define this_coro	asio::this_coro
 #define pbl			public:
 #define prv			private:
-
-namespace io::dns
-{
-	// Resolve dns record from context-global service.
-	inline auto resolve(std::string protocol, std::string host) -> io::coro<asio::ip::tcp::resolver::results_type>
-	{
-		io::service<asio::ip::tcp::resolver> service;
-		auto & resolver = (co_await service.get_or_make(co_await this_coro::executor)).get();
-		co_return co_await resolver.async_resolve(host, protocol, io::use_coro);
-	}
-}
 
 namespace io::ssl
 {
