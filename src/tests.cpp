@@ -16,12 +16,12 @@
 #include <vector>
 
 // iofox
-#include <iofox.hpp>
 #include <iofox/coro.hpp>
 #include <iofox/error.hpp>
 #include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
 #include <iofox/http.hpp>
+#include <iofox/send.hpp>
 
 // other
 #include <catch2/catch_test_macros.hpp>
