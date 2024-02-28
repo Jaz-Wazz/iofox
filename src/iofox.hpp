@@ -36,10 +36,7 @@
 #include <boost/system/detail/error_code.hpp>
 #include <boost/url/urls.hpp>
 #include <exception>
-#include <filesystem>
-#include <fstream>
 #include <initializer_list>
-#include <ios>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
@@ -375,25 +372,6 @@ namespace io::http
 		}
 
 		pbl response_header(beast::http::response_header<> && header): base(std::move(header)) {}
-	};
-
-	class connection_dumped: public std::exception
-	{
-		pbl const std::string request;
-		pbl const std::string response;
-
-		pbl connection_dumped(const auto & request, const auto & response)
-		: request((std::stringstream() << request).str()), response((std::stringstream() << response).str()) {}
-
-		pbl auto what() const noexcept -> const char * override
-		{
-			return "connection_dumped";
-		}
-
-		pbl void save_dump(std::filesystem::path path) const
-		{
-			std::ofstream(path, std::ios::binary) << request << '\n' << response << '\n';
-		}
 	};
 }
 
