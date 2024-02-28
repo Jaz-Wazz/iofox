@@ -33,7 +33,7 @@
 #include <boost/beast/http/buffer_body.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
 #include <boost/core/noncopyable.hpp>
-#include <boost/system/detail/error_code.hpp>
+#include <boost/system/error_code.hpp>
 #include <boost/url/urls.hpp>
 #include <exception>
 #include <initializer_list>
