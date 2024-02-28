@@ -15,10 +15,13 @@
 #include <string>
 #include <vector>
 
+// iofox
+#include <iofox.hpp>
+#include <iofox/error.hpp>
+
 // other
 #include <catch2/catch_test_macros.hpp>
 #include <fmt/core.h>
-#include <iofox.hpp>
 
 TEST_CASE("is_common_disconnect")
 {
