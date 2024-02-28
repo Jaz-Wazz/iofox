@@ -1,24 +1,31 @@
-// Boost.Asio.
+// boost_asio
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
 
-// Boost.Beast.
+// boost_beast
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/error.hpp>
 
-// Boost.System.
+// boost_system
 #include <boost/system/error_code.hpp>
 
-// Stl.
+// stl
 #include <cstdint>
 #include <string>
 #include <vector>
 
-// Other.
+// iofox
+#include <iofox/coro.hpp>
+#include <iofox/error.hpp>
+#include <iofox/service.hpp>
+#include <iofox/rethrowed.hpp>
+#include <iofox/http.hpp>
+#include <iofox/send.hpp>
+
+// other
 #include <catch2/catch_test_macros.hpp>
 #include <fmt/core.h>
-#include <iofox.hpp>
 
 TEST_CASE("is_common_disconnect")
 {
