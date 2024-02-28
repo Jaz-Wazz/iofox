@@ -46,7 +46,6 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <winnt.h>
 
 #define asio		boost::asio
 #define beast		boost::beast
@@ -156,18 +155,6 @@ namespace io::ssl
 			ctx.load_verify_file(path);
 			ctx.set_verify_mode(asio::ssl::verify_peer);
 		}, io::rethrowed);
-	}
-}
-
-namespace io::windows
-{
-	// Windows language codes.
-	enum class lang: LANGID { english = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US) };
-
-	// Change boost language in Windows for this thread.
-	inline void set_asio_locale(lang code)
-	{
-		SetThreadUILanguage(static_cast<LANGID>(code));
 	}
 }
 
