@@ -7,6 +7,9 @@
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/error.hpp>
 
+// Boost.System.
+#include <boost/system/error_code.hpp>
+
 // Stl.
 #include <cstdint>
 #include <string>
@@ -26,6 +29,16 @@ TEST_CASE("is_common_disconnect")
 
 	REQUIRE(io::error::is_common_disconnect(boost::asio::error::not_connected) == false);
 	REQUIRE(io::error::is_common_disconnect(boost::beast::http::error::bad_method) == false);
+}
+
+TEST_CASE("is_common_timeout")
+{
+	REQUIRE(io::error::is_common_timeout(boost::asio::error::timed_out) == true);
+	REQUIRE(io::error::is_common_timeout(boost::beast::error::timeout) == true);
+	REQUIRE(io::error::is_common_timeout(boost::system::error_code(121, boost::asio::error::system_category)) == true);
+
+	REQUIRE(io::error::is_common_timeout(boost::asio::error::not_connected) == false);
+	REQUIRE(io::error::is_common_timeout(boost::beast::http::error::bad_method) == false);
 }
 
 TEST_CASE("service_mechanic")
