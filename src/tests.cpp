@@ -19,6 +19,7 @@
 #include <iofox.hpp>
 #include <iofox/coro.hpp>
 #include <iofox/error.hpp>
+#include <iofox/rethrowed.hpp>
 
 // other
 #include <catch2/catch_test_macros.hpp>

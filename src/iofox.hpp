@@ -35,7 +35,6 @@
 #include <boost/core/noncopyable.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/url/urls.hpp>
-#include <exception>
 #include <initializer_list>
 #include <sstream>
 #include <string_view>
@@ -49,6 +48,7 @@
 
 // iofox
 #include <iofox/coro.hpp>
+#include <iofox/rethrowed.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
@@ -58,15 +58,6 @@
 
 namespace io
 {
-	// Token indicating to exception should be rethrown.
-	constexpr class
-	{
-		pbl void operator ()(std::exception_ptr ptr) const
-		{
-			if(ptr) std::rethrow_exception(ptr);
-		}
-	} rethrowed;
-
 	// Service object - make T unique for any executors. [async_local c# alternative].
 	template <typename T> class service: boost::noncopyable
 	{
