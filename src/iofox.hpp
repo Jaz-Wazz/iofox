@@ -52,27 +52,13 @@
 #include <iofox/dns.hpp>
 #include <iofox/ssl.hpp>
 #include <iofox/https.hpp>
+#include <iofox/meta.hpp>
 
 #define asio		boost::asio
 #define beast		boost::beast
 #define this_coro	asio::this_coro
 #define pbl			public:
 #define prv			private:
-
-namespace io::meta
-{
-	// Concept check type is same std::vector<T> and sizeof(T) == 1 byte.
-	template <typename T>		struct is_vector					: std::false_type {};
-	template <typename... T>	struct is_vector<std::vector<T...>>	: std::true_type {};
-	template <typename T>		concept vector_one_byte = is_vector<T>::value && sizeof(typename T::value_type) == 1;
-
-	// Deduse body-type from underlying object-type. [std::string -> beast::http::string_body]
-	template <typename>				struct make_body_type_impl				{ using type = void;												};
-	template <>						struct make_body_type_impl<void>		{ using type = beast::http::empty_body;								};
-	template <>						struct make_body_type_impl<std::string>	{ using type = beast::http::string_body;							};
-	template <vector_one_byte T>	struct make_body_type_impl<T>			{ using type = beast::http::vector_body<typename T::value_type>;	};
-	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
-}
 
 namespace io::http
 {
