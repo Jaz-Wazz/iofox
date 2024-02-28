@@ -113,3 +113,23 @@ TEST_CASE("response")
 		REQUIRE(typeid(response.body()) == typeid(std::vector<std::int8_t>));
 	}
 }
+
+TEST_CASE("send")
+{
+	auto coro_x = [&] -> io::coro<void>
+	{
+		io::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
+		io::http::response response = co_await io::http::send("https://httpbin.org", request);
+	};
+
+	auto coro_y = [&] -> io::coro<void>
+	{
+		io::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
+		io::http::response<std::vector<char>> response = co_await io::http::send<std::vector<char>>("https://httpbin.org", request);
+	};
+
+	boost::asio::io_context context;
+	boost::asio::co_spawn(context, coro_x(), io::rethrowed);
+	boost::asio::co_spawn(context, coro_y(), io::rethrowed);
+	context.run();
+}
