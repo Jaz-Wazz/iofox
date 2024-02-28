@@ -47,6 +47,9 @@
 #include <string>
 #include <utility>
 
+// iofox
+#include <iofox/coro.hpp>
+
 #define asio		boost::asio
 #define beast		boost::beast
 #define this_coro	asio::this_coro
@@ -55,15 +58,6 @@
 
 namespace io
 {
-	// Type of async task, current asio::awaitable<T>.
-	template <typename T> using coro = asio::awaitable<T>;
-
-	// Token indicating to use async task, current asio::awaitable<T>.
-	constexpr asio::use_awaitable_t<> use_coro;
-
-	// Token indicating to use async task and return result as tuple.
-	constexpr asio::as_tuple_t<asio::use_awaitable_t<>> use_coro_tuple;
-
 	// Token indicating to exception should be rethrown.
 	constexpr class
 	{

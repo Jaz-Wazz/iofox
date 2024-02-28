@@ -17,6 +17,7 @@
 
 // iofox
 #include <iofox.hpp>
+#include <iofox/coro.hpp>
 #include <iofox/error.hpp>
 
 // other
