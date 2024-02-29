@@ -18,23 +18,23 @@
 #include <iofox/dns.hpp>
 #include <iofox/ssl.hpp>
 
-namespace io
+namespace iofox
 {
 	inline auto open_https_stream(const boost::asio::any_io_executor & executor, boost::asio::ssl::context & context, const std::string & host)
-	-> io::coro<boost::beast::ssl_stream<boost::beast::tcp_stream>>
+	-> iofox::coro<boost::beast::ssl_stream<boost::beast::tcp_stream>>
 	{
 		boost::beast::ssl_stream<boost::beast::tcp_stream> stream {executor, context};
 
 		stream.next_layer().expires_after(std::chrono::seconds(19));
-		co_await stream.next_layer().async_connect(co_await io::dns::resolve("https", host), io::use_coro);
+		co_await stream.next_layer().async_connect(co_await iofox::dns::resolve("https", host), iofox::use_coro);
 		stream.next_layer().expires_never();
 
-		co_await io::ssl::handshake_http_client(stream, host);
+		co_await iofox::ssl::handshake_http_client(stream, host);
 		co_return stream;
 	}
 
-	inline auto open_https_stream(const std::string & host) -> io::coro<boost::beast::ssl_stream<boost::beast::tcp_stream>>
+	inline auto open_https_stream(const std::string & host) -> iofox::coro<boost::beast::ssl_stream<boost::beast::tcp_stream>>
 	{
-		co_return co_await io::open_https_stream(co_await boost::asio::this_coro::executor, co_await io::ssl::context(), host);
+		co_return co_await iofox::open_https_stream(co_await boost::asio::this_coro::executor, co_await iofox::ssl::context(), host);
 	}
 }

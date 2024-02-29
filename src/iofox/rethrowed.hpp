@@ -3,7 +3,7 @@
 // stl
 #include <exception>
 
-namespace io
+namespace iofox
 {
 	constexpr struct
 	{

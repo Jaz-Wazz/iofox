@@ -25,11 +25,11 @@
 #include <iofox/service.hpp>
 #include <iofox/rethrowed.hpp>
 
-namespace io::ssl
+namespace iofox::ssl
 {
-	inline auto context() -> io::coro<std::reference_wrapper<boost::asio::ssl::context>>
+	inline auto context() -> iofox::coro<std::reference_wrapper<boost::asio::ssl::context>>
 	{
-		static io::service<boost::asio::ssl::context> service;
+		static iofox::service<boost::asio::ssl::context> service;
 		co_return co_await service.get_or_make(boost::asio::ssl::context::tls);
 	}
 
@@ -47,23 +47,23 @@ namespace io::ssl
 		boost::beast::ssl_stream<boost::beast::tcp_stream> & stream,
 		const std::string & host,
 		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
-	) -> io::coro<void>
+	) -> iofox::coro<void>
 	{
-		io::ssl::set_tls_extension_hostname(stream, host);
+		iofox::ssl::set_tls_extension_hostname(stream, host);
 		stream.set_verify_callback(boost::asio::ssl::host_name_verification(host));
 
 		stream.next_layer().expires_after(timeout);
-		co_await stream.async_handshake(boost::asio::ssl::stream_base::client, io::use_coro);
+		co_await stream.async_handshake(boost::asio::ssl::stream_base::client, iofox::use_coro);
 		stream.next_layer().expires_never();
 	}
 
 	inline void load_ca_certificates(auto & executor, const std::string & path)
 	{
-		boost::asio::co_spawn(executor, [=]() -> io::coro<void>
+		boost::asio::co_spawn(executor, [=]() -> iofox::coro<void>
 		{
-			boost::asio::ssl::context & ctx = co_await io::ssl::context();
+			boost::asio::ssl::context & ctx = co_await iofox::ssl::context();
 			ctx.load_verify_file(path);
 			ctx.set_verify_mode(boost::asio::ssl::verify_peer);
-		}, io::rethrowed);
+		}, iofox::rethrowed);
 	}
 }

@@ -29,30 +29,30 @@
 
 TEST_CASE("is_common_disconnect")
 {
-	REQUIRE(io::error::is_common_disconnect(boost::asio::error::connection_aborted) == true);
-	REQUIRE(io::error::is_common_disconnect(boost::asio::error::connection_reset) == true);
-	REQUIRE(io::error::is_common_disconnect(boost::asio::error::connection_refused) == true);
-	REQUIRE(io::error::is_common_disconnect(boost::beast::http::error::end_of_stream) == true);
+	REQUIRE(iofox::error::is_common_disconnect(boost::asio::error::connection_aborted) == true);
+	REQUIRE(iofox::error::is_common_disconnect(boost::asio::error::connection_reset) == true);
+	REQUIRE(iofox::error::is_common_disconnect(boost::asio::error::connection_refused) == true);
+	REQUIRE(iofox::error::is_common_disconnect(boost::beast::http::error::end_of_stream) == true);
 
-	REQUIRE(io::error::is_common_disconnect(boost::asio::error::not_connected) == false);
-	REQUIRE(io::error::is_common_disconnect(boost::beast::http::error::bad_method) == false);
+	REQUIRE(iofox::error::is_common_disconnect(boost::asio::error::not_connected) == false);
+	REQUIRE(iofox::error::is_common_disconnect(boost::beast::http::error::bad_method) == false);
 }
 
 TEST_CASE("is_common_timeout")
 {
-	REQUIRE(io::error::is_common_timeout(boost::asio::error::timed_out) == true);
-	REQUIRE(io::error::is_common_timeout(boost::beast::error::timeout) == true);
-	REQUIRE(io::error::is_common_timeout(boost::system::error_code(121, boost::asio::error::system_category)) == true);
+	REQUIRE(iofox::error::is_common_timeout(boost::asio::error::timed_out) == true);
+	REQUIRE(iofox::error::is_common_timeout(boost::beast::error::timeout) == true);
+	REQUIRE(iofox::error::is_common_timeout(boost::system::error_code(121, boost::asio::error::system_category)) == true);
 
-	REQUIRE(io::error::is_common_timeout(boost::asio::error::not_connected) == false);
-	REQUIRE(io::error::is_common_timeout(boost::beast::http::error::bad_method) == false);
+	REQUIRE(iofox::error::is_common_timeout(boost::asio::error::not_connected) == false);
+	REQUIRE(iofox::error::is_common_timeout(boost::beast::http::error::bad_method) == false);
 }
 
 TEST_CASE("service_mechanic")
 {
-	io::service<int> service;
+	iofox::service<int> service;
 
-	auto coro = [&] -> io::coro<void>
+	auto coro = [&] -> iofox::coro<void>
 	{
 		int & value = co_await service.get_or_make(0);
 		value++;
@@ -61,8 +61,8 @@ TEST_CASE("service_mechanic")
 	};
 
 	boost::asio::io_context context_x, context_y;
-	for(int i = 0; i < 10; i++) boost::asio::co_spawn(context_x, coro(), io::rethrowed);
-	for(int i = 0; i < 10; i++) boost::asio::co_spawn(context_y, coro(), io::rethrowed);
+	for(int i = 0; i < 10; i++) boost::asio::co_spawn(context_x, coro(), iofox::rethrowed);
+	for(int i = 0; i < 10; i++) boost::asio::co_spawn(context_y, coro(), iofox::rethrowed);
 	context_x.run();
 	context_y.run();
 }
@@ -71,25 +71,25 @@ TEST_CASE("request")
 {
 	SECTION("void")
 	{
-		io::http::request request;
+		iofox::http::request request;
 		REQUIRE(typeid(request.body()) == typeid(boost::beast::http::empty_body::value_type));
 	}
 
 	SECTION("std::string")
 	{
-		io::http::request<std::string> request;
+		iofox::http::request<std::string> request;
 		REQUIRE(typeid(request.body()) == typeid(std::string));
 	}
 
 	SECTION("std::vector<char>")
 	{
-		io::http::request<std::vector<char>> request;
+		iofox::http::request<std::vector<char>> request;
 		REQUIRE(typeid(request.body()) == typeid(std::vector<char>));
 	}
 
 	SECTION("std::vector<std::int8_t>")
 	{
-		io::http::request<std::vector<std::int8_t>> request;
+		iofox::http::request<std::vector<std::int8_t>> request;
 		REQUIRE(typeid(request.body()) == typeid(std::vector<std::int8_t>));
 	}
 }
@@ -98,45 +98,45 @@ TEST_CASE("response")
 {
 	SECTION("void")
 	{
-		io::http::response response;
+		iofox::http::response response;
 		REQUIRE(typeid(response.body()) == typeid(boost::beast::http::empty_body::value_type));
 	}
 
 	SECTION("std::string")
 	{
-		io::http::response<std::string> response;
+		iofox::http::response<std::string> response;
 		REQUIRE(typeid(response.body()) == typeid(std::string));
 	}
 
 	SECTION("std::vector<char>")
 	{
-		io::http::response<std::vector<char>> response;
+		iofox::http::response<std::vector<char>> response;
 		REQUIRE(typeid(response.body()) == typeid(std::vector<char>));
 	}
 
 	SECTION("std::vector<std::int8_t>")
 	{
-		io::http::response<std::vector<std::int8_t>> response;
+		iofox::http::response<std::vector<std::int8_t>> response;
 		REQUIRE(typeid(response.body()) == typeid(std::vector<std::int8_t>));
 	}
 }
 
 TEST_CASE("send")
 {
-	auto coro_x = [&] -> io::coro<void>
+	auto coro_x = [&] -> iofox::coro<void>
 	{
-		io::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
-		io::http::response response = co_await io::http::send("https://httpbin.org", request);
+		iofox::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
+		iofox::http::response response = co_await iofox::http::send("https://httpbin.org", request);
 	};
 
-	auto coro_y = [&] -> io::coro<void>
+	auto coro_y = [&] -> iofox::coro<void>
 	{
-		io::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
-		io::http::response<std::vector<char>> response = co_await io::http::send<std::vector<char>>("https://httpbin.org", request);
+		iofox::http::request request {"POST", "/post", {{"Host", "httpbin.org"}}};
+		iofox::http::response<std::vector<char>> response = co_await iofox::http::send<std::vector<char>>("https://httpbin.org", request);
 	};
 
 	boost::asio::io_context context;
-	boost::asio::co_spawn(context, coro_x(), io::rethrowed);
-	boost::asio::co_spawn(context, coro_y(), io::rethrowed);
+	boost::asio::co_spawn(context, coro_x(), iofox::rethrowed);
+	boost::asio::co_spawn(context, coro_y(), iofox::rethrowed);
 	context.run();
 }

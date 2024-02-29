@@ -15,7 +15,7 @@
 // iofox
 #include <iofox/coro.hpp>
 
-namespace io
+namespace iofox
 {
 	template <typename T> struct service: boost::noncopyable
 	{
@@ -29,7 +29,7 @@ namespace io
 			void shutdown() {}
 		};
 
-		auto get_or_make(auto... args) -> io::coro<std::reference_wrapper<T>>
+		auto get_or_make(auto... args) -> iofox::coro<std::reference_wrapper<T>>
 		{
 			auto && context = (co_await boost::asio::this_coro::executor).context();
 			if(!boost::asio::has_service<serv>(context)) boost::asio::make_service<serv>(context);

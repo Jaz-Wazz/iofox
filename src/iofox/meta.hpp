@@ -9,7 +9,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace io::meta
+namespace iofox::meta
 {
 	template <typename T>		struct is_vector					: std::false_type {};
 	template <typename... T>	struct is_vector<std::vector<T...>>	: std::true_type {};

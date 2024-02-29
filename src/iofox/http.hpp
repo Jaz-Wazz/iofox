@@ -21,9 +21,9 @@
 #define pbl public:
 #define prv private:
 
-namespace io::http
+namespace iofox::http
 {
-	template <typename T = void> class request: public boost::beast::http::request<io::meta::make_body_type<T>>
+	template <typename T = void> class request: public boost::beast::http::request<iofox::meta::make_body_type<T>>
 	{
 		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
 

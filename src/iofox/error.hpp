@@ -10,7 +10,7 @@
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/http/error.hpp>
 
-namespace io::error
+namespace iofox::error
 {
 	constexpr bool is_common_timeout(const boost::system::error_code & ec)
 	{

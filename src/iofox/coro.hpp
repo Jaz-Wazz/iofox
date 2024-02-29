@@ -5,7 +5,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
-namespace io
+namespace iofox
 {
 	template <typename T> using coro = boost::asio::awaitable<T>;
 	constexpr boost::asio::use_awaitable_t use_coro;

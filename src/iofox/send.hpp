@@ -21,7 +21,7 @@
 #include <iofox/http.hpp>
 #include <iofox/https.hpp>
 
-namespace io::http
+namespace iofox::http
 {
 	template <typename T = std::string>
 	inline auto send
@@ -30,13 +30,13 @@ namespace io::http
 		const auto & request,
 		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
 	)
-	-> io::coro<io::http::response<T>>
+	-> iofox::coro<iofox::http::response<T>>
 	{
 		stream.next_layer().expires_after(timeout);
-		co_await boost::beast::http::async_write(stream, request, io::use_coro);
-		io::http::response<T> response;
+		co_await boost::beast::http::async_write(stream, request, iofox::use_coro);
+		iofox::http::response<T> response;
 		boost::beast::flat_buffer buffer;
-		co_await boost::beast::http::async_read(stream, buffer, response, io::use_coro);
+		co_await boost::beast::http::async_read(stream, buffer, response, iofox::use_coro);
 		stream.next_layer().expires_never();
 		co_return response;
 	}
@@ -48,11 +48,11 @@ namespace io::http
 		const auto & request,
 		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
 	)
-	-> io::coro<io::http::response<T>>
+	-> iofox::coro<iofox::http::response<T>>
 	{
 		if(url.scheme() != "https") throw std::runtime_error("unsupported_protocol");
-		auto stream = co_await io::open_https_stream(url.host());
-		co_return co_await io::http::send<T>(stream, request, timeout);
+		auto stream = co_await iofox::open_https_stream(url.host());
+		co_return co_await iofox::http::send<T>(stream, request, timeout);
 	}
 
 	template <typename T = std::string>
@@ -62,16 +62,16 @@ namespace io::http
 		const auto & request,
 		const std::chrono::steady_clock::duration timeout = std::chrono::seconds(60)
 	)
-	-> io::coro<io::http::response<T>>
+	-> iofox::coro<iofox::http::response<T>>
 	{
-		co_return co_await io::http::send<T>(boost::url(url), request, timeout);
+		co_return co_await iofox::http::send<T>(boost::url(url), request, timeout);
 	}
 
 	extern template auto send<std::string>
 	(
 		const std::string_view url,
-		const io::http::request<void> & request,
+		const iofox::http::request<void> & request,
 		const std::chrono::steady_clock::duration timeout
 	)
-	-> io::coro<io::http::response<std::string>>;
+	-> iofox::coro<iofox::http::response<std::string>>;
 }
