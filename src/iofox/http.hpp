@@ -8,9 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <type_traits>
 #include <utility>
-#include <vector>
 
 // fmt
 #include <fmt/core.h>
@@ -37,26 +35,6 @@ namespace iofox::http
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
 
-		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
-		request(std::string method, std::string target, header_list headers, const std::string & body)
-		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = body; }
-
-		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
-		request(std::string method, std::string target, header_list headers, const std::string && body)
-		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = std::move(body); }
-
-		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
-		request(std::string method, std::string target, header_list headers, const std::vector<typename X::value_type> & body)
-		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = body; }
-
-		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
-		request(std::string method, std::string target, header_list headers, const std::vector<typename X::value_type> && body)
-		: request(std::move(method), std::move(target), std::move(headers))
-		{ this->body() = std::move(body); }
-
 		pbl void debug_dump()
 		{
 			fmt::print("[request] - {}\n", (std::stringstream() << *this).str());
@@ -74,22 +52,6 @@ namespace iofox::http
 			this->result(result);
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
-
-		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
-		response(unsigned int result, header_list headers, const std::string & body): response(result, std::move(headers))
-		{ this->body() = body; }
-
-		pbl template <typename X = T, typename std::enable_if<std::is_same_v<X, std::string>, int>::type = 0>
-		response(unsigned int result, header_list headers, std::string && body): response(result, std::move(headers))
-		{ this->body() = std::move(body); }
-
-		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
-		response(unsigned int result, header_list headers, const std::vector<typename X::value_type> & body): response(result, std::move(headers))
-		{ this->body() = body; }
-
-		pbl template <typename X = T, typename std::enable_if<meta::vector_one_byte<X>, int>::type = 0>
-		response(unsigned int result, header_list headers, std::vector<typename X::value_type> && body): response(result, std::move(headers))
-		{ this->body() = std::move(body); }
 
 		pbl void check_code(int expected_code)
 		{
