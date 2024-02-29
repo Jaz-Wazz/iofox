@@ -22,6 +22,7 @@
 #include <iofox/rethrowed.hpp>
 #include <iofox/http.hpp>
 #include <iofox/send.hpp>
+#include <iofox/this_thread.hpp>
 
 // other
 #include <catch2/catch_test_macros.hpp>
@@ -139,4 +140,9 @@ TEST_CASE("send")
 	boost::asio::co_spawn(context, coro_x(), iofox::rethrowed);
 	boost::asio::co_spawn(context, coro_y(), iofox::rethrowed);
 	context.run();
+}
+
+TEST_CASE("this_thread_language")
+{
+	iofox::this_thread::set_language("en_us");
 }
