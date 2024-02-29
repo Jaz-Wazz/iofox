@@ -6,8 +6,8 @@
 
 // windows
 #ifdef _WIN32
-#include <winnls.h>
-#include <winnt.h>
+	#include <winnls.h>
+	#include <winnt.h>
 #endif
 
 namespace iofox::this_thread
@@ -16,7 +16,7 @@ namespace iofox::this_thread
 	{
 		if(code != "en_us") throw std::invalid_argument("unsupported_language_code");
 		#ifdef _WIN32
-		SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
+			SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
 		#endif
 	}
 }
