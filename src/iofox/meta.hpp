@@ -6,18 +6,14 @@
 #include <boost/beast/http/vector_body.hpp>
 
 // stl
-#include <type_traits>
+#include <string>
 #include <vector>
 
 namespace iofox::meta
 {
-	template <typename T>		struct is_vector					: std::false_type {};
-	template <typename... T>	struct is_vector<std::vector<T...>>	: std::true_type {};
-	template <typename T>		concept vector_one_byte = is_vector<T>::value && sizeof(typename T::value_type) == 1;
-
-	template <typename>				struct make_body_type_impl				{ using type = void;													};
-	template <>						struct make_body_type_impl<void>		{ using type = boost::beast::http::empty_body;							};
-	template <>						struct make_body_type_impl<std::string>	{ using type = boost::beast::http::string_body;							};
-	template <vector_one_byte T>	struct make_body_type_impl<T>			{ using type = boost::beast::http::vector_body<typename T::value_type>;	};
-	template <typename T> using make_body_type = typename make_body_type_impl<std::remove_reference_t<T>>::type;
+	template <class T>		struct transform_body { using type = T; };
+	template <>				struct transform_body<void> { using type = boost::beast::http::empty_body; };
+	template <class... T>	struct transform_body<std::basic_string<T...>> { using type = boost::beast::http::basic_string_body<T...>; };
+	template <class... T>	struct transform_body<std::vector<T...>> { using type = boost::beast::http::vector_body<T...>; };
+	template <class T> using transform_body_v = transform_body<T>::type;
 }
