@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION "3.27.4")
 project("iofox")
 
-file(GLOB_RECURSE src "src/*")
+file(GLOB_RECURSE src "src/*" "test/*")
 add_executable(${PROJECT_NAME} ${src})
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 23)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CMAKE_CXX_STANDARD_REQUIRED ON)
