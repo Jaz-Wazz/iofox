@@ -1,13 +1,13 @@
 #pragma once
 
 // boost_beast
+#include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
 
 // stl
 #include <initializer_list>
 #include <sstream>
-#include <stdexcept>
-#include <string>
+#include <string_view>
 #include <utility>
 
 // fmt
@@ -21,76 +21,35 @@
 
 namespace iofox::http
 {
-	template <typename T = void> class request: public boost::beast::http::request<meta::transform_body_v<T>>
+	using headers = std::initializer_list<std::pair<std::string_view, std::string_view>>;
+
+	template <bool is_request, class body_type = void, class fields_type = boost::beast::http::fields>
+	class message: public boost::beast::http::message<is_request, meta::transform_body_v<body_type>, fields_type>
 	{
-		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
+		pbl void debug_dump()
+		{
+			fmt::print("[http_message] - {}\n", (std::stringstream() << *this).str());
+		}
+	};
 
-		pbl using boost::beast::http::request<meta::transform_body_v<T>>::operator=;
-		pbl using boost::beast::http::request<meta::transform_body_v<T>>::operator[];
-
-		pbl request(std::string method = "GET", std::string target = "/", header_list headers = {})
+	template <class body_type = void, class fields_type = boost::beast::http::fields>
+	class request: public message<true, body_type, fields_type>
+	{
+		pbl request(std::string_view method = "GET", std::string_view target = "/", headers headers = {})
 		{
 			this->method_string(method);
 			this->target(target);
 			for(auto && [header, value] : headers) this->insert(header, value);
 		}
-
-		pbl void debug_dump()
-		{
-			fmt::print("[request] - {}\n", (std::stringstream() << *this).str());
-		}
 	};
 
-	template <typename T = void> class response: public boost::beast::http::response<meta::transform_body_v<T>>
+	template <class body_type = void, class fields_type = boost::beast::http::fields>
+	class response: public message<false, body_type, fields_type>
 	{
-		prv using header_list = std::initializer_list<std::pair<std::string, std::string>>;
-		pbl using boost::beast::http::response<meta::transform_body_v<T>>::operator=;
-		pbl using boost::beast::http::response<meta::transform_body_v<T>>::operator[];
-
-		pbl response(unsigned int result = 200, header_list headers = {})
+		pbl response(unsigned int result = 200, headers headers = {})
 		{
 			this->result(result);
 			for(auto && [header, value] : headers) this->insert(header, value);
-		}
-
-		pbl void check_code(int expected_code)
-		{
-			using base = boost::beast::http::response<meta::transform_body_v<T>>;
-			if(base::result_int() != expected_code) throw std::runtime_error("unexpected_code");
-		}
-
-		pbl void check_header(const std::string_view header)
-		{
-			using base = boost::beast::http::response<meta::transform_body_v<T>>;
-			if(base::operator[](header).empty()) throw std::runtime_error("unexpected_header");
-		}
-
-		pbl void check_contains_body()
-		{
-			using base = boost::beast::http::response<meta::transform_body_v<T>>;
-			if(base::chunked() && !base::body().empty()) return;
-			if(base::has_content_length() && base::operator[]("Content-Length") != "0" && !base::body().empty()) return;
-			throw std::runtime_error("unexpected_empty_body");
-		}
-
-		pbl void check_not_contains_body()
-		{
-			using base = boost::beast::http::response<meta::transform_body_v<T>>;
-			if(base::operator[]("Content-Length") != "0" || !base::body().empty())
-			{
-				throw std::runtime_error("unexpected_body");
-			}
-		}
-
-		pbl void check_content_type(std::string_view expected_type)
-		{
-			using base = boost::beast::http::response<meta::transform_body_v<T>>;
-			if(base::at("Content-Type") != expected_type) throw std::runtime_error("unexpected_content_type");
-		}
-
-		pbl void debug_dump()
-		{
-			fmt::print("[response] - {}\n", (std::stringstream() << *this).str());
 		}
 	};
 }
