@@ -9,11 +9,15 @@
 #include <string>
 #include <vector>
 
-namespace iofox::meta
+namespace iofox::meta::detail
 {
 	template <class T>		struct transform_body { using type = T; };
 	template <>				struct transform_body<void> { using type = boost::beast::http::empty_body; };
 	template <class... T>	struct transform_body<std::basic_string<T...>> { using type = boost::beast::http::basic_string_body<T...>; };
 	template <class... T>	struct transform_body<std::vector<T...>> { using type = boost::beast::http::vector_body<T...>; };
-	template <class T> using transform_body_v = transform_body<T>::type;
+}
+
+namespace iofox::meta
+{
+	template <class T> using transform_body = detail::transform_body<T>::type;
 }

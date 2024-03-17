@@ -24,7 +24,7 @@ namespace iofox::http
 	using headers = std::initializer_list<std::pair<std::string_view, std::string_view>>;
 
 	template <bool is_request, class body_type = void, class fields_type = boost::beast::http::fields>
-	class message: public boost::beast::http::message<is_request, meta::transform_body_v<body_type>, fields_type>
+	class message: public boost::beast::http::message<is_request, meta::transform_body<body_type>, fields_type>
 	{
 		pbl void debug_dump()
 		{

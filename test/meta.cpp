@@ -16,10 +16,10 @@
 
 TEST_CASE("meta")
 {
-	using a = iofox::meta::transform_body_v<void>;
-	using b = iofox::meta::transform_body_v<std::string>;
-	using c = iofox::meta::transform_body_v<std::vector<char>>;
-	using d = iofox::meta::transform_body_v<int>;
+	using a = iofox::meta::transform_body<void>;
+	using b = iofox::meta::transform_body<std::string>;
+	using c = iofox::meta::transform_body<std::vector<char>>;
+	using d = iofox::meta::transform_body<int>;
 	REQUIRE(std::is_same_v<a, boost::beast::http::empty_body>);
 	REQUIRE(std::is_same_v<b, boost::beast::http::string_body>);
 	REQUIRE(std::is_same_v<c, boost::beast::http::vector_body<char>>);
