@@ -43,24 +43,55 @@ TEST_CASE()
 	boost::asio::co_spawn(executor_for_client, coro_client(), iofox::rethrowed);
 }
 
+struct logging_executor
+{
+	// All executors must be no-throw equality comparable.
+	bool operator==(const logging_executor &) const noexcept = default;
+
+	// All executors must provide a const member function execute().
+	void execute(std::invocable auto handler) const
+	{
+		fmt::print("handler invocation starting.\n");
+		std::move(handler)();
+		fmt::print("handler invocation complete.\n");
+	}
+};
+
 TEST_CASE("one")
 {
-	boost::asio::io_context context_a;
-	boost::asio::io_context context_b;
-	auto strand_executor = boost::asio::make_strand(context_a);
+	boost::asio::io_context context;
+	auto coro = [] -> iofox::coro<void> { fmt::print("[coro] - sas.\n"); co_return; };
 
-	auto coro = [] -> iofox::coro<void>
+	// bind executor with completion token - work around completition token call.
+	boost::asio::co_spawn(context, coro(), boost::asio::bind_executor(logging_executor{}, [](auto...)
 	{
-		const auto executor = co_await boost::asio::this_coro::executor;
-		fmt::print("[coro] - execution context address: '{}'.\n", (void *) &executor.context());
-		co_return;
-	};
+		fmt::print("garox.\n");
+	}));
 
-	boost::asio::co_spawn(context_a, coro(), iofox::rethrowed);
-	boost::asio::co_spawn(context_a.get_executor(), coro(), iofox::rethrowed);
-	boost::asio::co_spawn(context_a.get_executor().context(), coro(), iofox::rethrowed);
-	boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
-	boost::asio::co_spawn(context_b, coro(), iofox::rethrowed);
-	context_a.run();
-	context_b.run();
+	// bind executor with coro - not work&
+	boost::asio::co_spawn(context, boost::asio::bind_executor(logging_executor{}, coro), iofox::rethrowed);
+	context.run();
+
+	// boost::asio::io_context context_b;
+	// auto strand_executor = boost::asio::make_strand(context_a);
+
+	// auto coro = [] -> iofox::coro<void>
+	// {
+	// 	const auto executor = co_await boost::asio::this_coro::executor;
+	// 	auto & service = boost::asio::use_service<some_service>(executor.context());
+
+	// 	for(int i = 0; i < 10; i++)
+	// 	{
+	// 		fmt::print("[coro] - context: '{}', service value: '{}'.\n", (void *) &executor.context(), service.i++);
+	// 	}
+	// 	co_return;
+	// };
+
+	// boost::asio::co_spawn(context_a, coro(), iofox::rethrowed);
+	// boost::asio::co_spawn(context_a.get_executor(), coro(), iofox::rethrowed);
+	// boost::asio::co_spawn(context_a.get_executor().context(), coro(), iofox::rethrowed);
+	// boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
+	// boost::asio::co_spawn(context_b, coro(), iofox::rethrowed);
+	// context_a.run();
+	// context_b.run();
 }
