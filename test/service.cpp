@@ -60,7 +60,13 @@ struct logging_executor
 TEST_CASE("one")
 {
 	boost::asio::io_context context;
-	auto coro = [] -> iofox::coro<void> { fmt::print("[coro] - sas.\n"); co_return; };
+
+	auto coro = [] -> iofox::coro<void>
+	{
+		const auto executor = co_await boost::asio::this_coro::executor;
+		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
+		co_return;
+	};
 
 	// bind executor with completion token - work around completition token call.
 	boost::asio::co_spawn(context, coro(), boost::asio::bind_executor(logging_executor{}, [](auto...)
@@ -68,30 +74,5 @@ TEST_CASE("one")
 		fmt::print("garox.\n");
 	}));
 
-	// bind executor with coro - not work&
-	boost::asio::co_spawn(context, boost::asio::bind_executor(logging_executor{}, coro), iofox::rethrowed);
 	context.run();
-
-	// boost::asio::io_context context_b;
-	// auto strand_executor = boost::asio::make_strand(context_a);
-
-	// auto coro = [] -> iofox::coro<void>
-	// {
-	// 	const auto executor = co_await boost::asio::this_coro::executor;
-	// 	auto & service = boost::asio::use_service<some_service>(executor.context());
-
-	// 	for(int i = 0; i < 10; i++)
-	// 	{
-	// 		fmt::print("[coro] - context: '{}', service value: '{}'.\n", (void *) &executor.context(), service.i++);
-	// 	}
-	// 	co_return;
-	// };
-
-	// boost::asio::co_spawn(context_a, coro(), iofox::rethrowed);
-	// boost::asio::co_spawn(context_a.get_executor(), coro(), iofox::rethrowed);
-	// boost::asio::co_spawn(context_a.get_executor().context(), coro(), iofox::rethrowed);
-	// boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
-	// boost::asio::co_spawn(context_b, coro(), iofox::rethrowed);
-	// context_a.run();
-	// context_b.run();
 }
