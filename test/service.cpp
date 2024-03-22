@@ -52,10 +52,13 @@ TEST_CASE("one")
 	{
 		const auto executor = co_await boost::asio::this_coro::executor;
 		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
+
 		co_return;
 	};
 
 	boost::asio::co_spawn(context, coro(), iofox::rethrowed);
+	boost::asio::co_spawn(context.get_executor(), coro(), iofox::rethrowed);
+	boost::asio::co_spawn(context.get_executor().context(), coro(), iofox::rethrowed);
 	boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
 	context.run();
 }
