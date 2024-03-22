@@ -52,6 +52,7 @@ TEST_CASE("one")
 	{
 		const auto executor = co_await boost::asio::this_coro::executor;
 		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
+		fmt::print("[coro] - target ptr: '{}'.\n", (void *) executor.target<boost::asio::io_context>());
 
 		co_return;
 	};
