@@ -45,21 +45,22 @@ TEST_CASE()
 
 TEST_CASE("one")
 {
-	boost::asio::io_context context;
-	auto strand_executor = boost::asio::make_strand(context);
+	boost::asio::io_context context_a;
+	boost::asio::io_context context_b;
+	auto strand_executor = boost::asio::make_strand(context_a);
 
 	auto coro = [] -> iofox::coro<void>
 	{
 		const auto executor = co_await boost::asio::this_coro::executor;
-		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
-		fmt::print("[coro] - target ptr: '{}'.\n", (void *) executor.target<boost::asio::io_context::executor_type>());
-
+		fmt::print("[coro] - execution context address: '{}'.\n", (void *) &executor.context());
 		co_return;
 	};
 
-	boost::asio::co_spawn(context, coro(), iofox::rethrowed);
-	boost::asio::co_spawn(context.get_executor(), coro(), iofox::rethrowed);
-	boost::asio::co_spawn(context.get_executor().context(), coro(), iofox::rethrowed);
+	boost::asio::co_spawn(context_a, coro(), iofox::rethrowed);
+	boost::asio::co_spawn(context_a.get_executor(), coro(), iofox::rethrowed);
+	boost::asio::co_spawn(context_a.get_executor().context(), coro(), iofox::rethrowed);
 	boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
-	context.run();
+	boost::asio::co_spawn(context_b, coro(), iofox::rethrowed);
+	context_a.run();
+	context_b.run();
 }
