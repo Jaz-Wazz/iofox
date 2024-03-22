@@ -6,6 +6,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/this_coro.hpp>
+#include <boost/asio/strand.hpp>
 
 // iofox
 #include <fmt/core.h>
@@ -42,7 +43,19 @@ TEST_CASE()
 	boost::asio::co_spawn(executor_for_client, coro_client(), iofox::rethrowed);
 }
 
-TEST_CASE()
+TEST_CASE("one")
 {
+	boost::asio::io_context context;
+	auto strand_executor = boost::asio::make_strand(context);
 
+	auto coro = [] -> iofox::coro<void>
+	{
+		const auto executor = co_await boost::asio::this_coro::executor;
+		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
+		co_return;
+	};
+
+	boost::asio::co_spawn(context, coro(), iofox::rethrowed);
+	boost::asio::co_spawn(strand_executor, coro(), iofox::rethrowed);
+	context.run();
 }
