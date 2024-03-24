@@ -1,5 +1,7 @@
 // boost_asio
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/execution/allocator.hpp>
+#include <boost/asio/execution/context.hpp>
 #include <boost/asio/execution_context.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -7,6 +9,8 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/query.hpp>
+#include <boost/asio/require.hpp>
 
 // iofox
 #include <fmt/core.h>
@@ -17,62 +21,45 @@
 // catch2
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE()
+struct executor_wrapper: public boost::asio::io_context::executor_type
 {
-	boost::asio::io_context context;
+	// executor_wrapper(boost::asio::io_context & io_context): boost::asio::io_context::executor_type(io_context)
+	// {
 
-	auto coro_server = [] -> iofox::coro<void>
-	{
-		const auto executor = co_await boost::asio::this_coro::executor;
-		// http_server server {executor};
-		co_return;
-	};
+	// }
 
-	auto coro_client = [] -> iofox::coro<void>
-	{
-		const auto executor = co_await boost::asio::this_coro::executor;
-		// http_client client {executor};
-		co_return;
-	};
+	// boost::asio::execution_context& query(
+    //   boost::asio::execution::context_t) const noexcept
+	// {
+	// 	return *context_;
+	// }
 
-	// some magic: [executor] + [associated ssl_context].
-	auto & executor_for_server = context;
-	auto & executor_for_client = context;
-
-	boost::asio::co_spawn(executor_for_server, coro_server(), iofox::rethrowed);
-	boost::asio::co_spawn(executor_for_client, coro_client(), iofox::rethrowed);
-}
-
-struct logging_executor
-{
-	// All executors must be no-throw equality comparable.
-	bool operator==(const logging_executor &) const noexcept = default;
-
-	// All executors must provide a const member function execute().
-	void execute(std::invocable auto handler) const
-	{
-		fmt::print("handler invocation starting.\n");
-		std::move(handler)();
-		fmt::print("handler invocation complete.\n");
-	}
+	// public: using boost::asio::io_context::basic_executor_type<std::allocator<void>, 0>::basic_executor_type;
 };
 
 TEST_CASE("one")
 {
-	boost::asio::io_context context;
+	boost::asio::execution::context_t x;
+	boost::asio::io_context io_context;
+	executor_wrapper executor_wrapper {io_context.get_executor()};
+
+	auto & result_x = boost::asio::query(io_context.get_executor(), boost::asio::execution::context);
+	auto & result_y = boost::asio::query(executor_wrapper, boost::asio::execution::context);
+	auto result_z = boost::asio::query(executor_wrapper, boost::asio::execution::allocator);
+
+	// io_context.get_executor().
+	// wrapper.
 
 	auto coro = [] -> iofox::coro<void>
 	{
 		const auto executor = co_await boost::asio::this_coro::executor;
 		fmt::print("[coro] - executor type name: '{}'.\n", executor.target_type().name());
+
+		auto & result_y = boost::asio::query(executor, boost::asio::execution::context);
+		// auto result_z = boost::asio::query(executor, boost::asio::execution::allocator);
 		co_return;
 	};
 
-	// bind executor with completion token - work around completition token call.
-	boost::asio::co_spawn(context, coro(), boost::asio::bind_executor(logging_executor{}, [](auto...)
-	{
-		fmt::print("garox.\n");
-	}));
-
-	context.run();
+	boost::asio::co_spawn(executor_wrapper, coro(), iofox::rethrowed);
+	io_context.run();
 }
