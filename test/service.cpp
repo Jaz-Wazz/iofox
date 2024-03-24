@@ -13,6 +13,7 @@
 #include <boost/asio/strand.hpp>
 #include <boost/asio/query.hpp>
 #include <boost/asio/require.hpp>
+#include <boost/asio/require_concept.hpp>
 
 // iofox
 #include <fmt/core.h>
@@ -24,47 +25,40 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
-namespace iofox
-{
-	template <class T>
-	struct executor_wrapper: public T
-	{
-		boost::asio::ssl::context * ssl_context = nullptr;
-	};
+// Define a custom property named MyCustomProperty
+struct MyCustomProperty {
+    static constexpr bool is_requirable_concept = true;
+    static constexpr bool value() { return true; }
 
-	template <class T = boost::asio::io_context::executor_type>
-	auto get_ssl_context(const boost::asio::any_io_executor & any_executor) -> boost::asio::ssl::context &
-	{
-		auto * ptr = any_executor.target<executor_wrapper<T>>();
-		if(ptr != nullptr) return *(ptr->ssl_context); else throw std::runtime_error("executor_not_contain_ssl_context");
-	}
+    template <class T>
+    static constexpr bool static_query_v = T::value();
 
-	auto make_executor_wrapper(boost::asio::io_context & io_context, boost::asio::ssl::context & ssl_context)
-	{
-		return executor_wrapper {io_context.get_executor(), &ssl_context};
-	}
-}
+    template <class E>
+    static constexpr bool require_concept(E e) {
+        return e.value();
+    }
+
+    template <class T>
+	static constexpr bool is_applicable_property_v = true;
+};
+
+// Example usage of the custom property
+struct MyType {
+    static constexpr bool value() { return true; }
+};
 
 TEST_CASE("one")
 {
 	boost::asio::io_context io_context;
-	boost::asio::ssl::context ssl_context_server {boost::asio::ssl::context::tls};
-	boost::asio::ssl::context ssl_context_client {boost::asio::ssl::context::tls};
-	auto executor_server = iofox::make_executor_wrapper(io_context, ssl_context_server);
-	auto executor_client = iofox::make_executor_wrapper(io_context, ssl_context_client);
-	// executor_client.ssl_context = &local_ssl_context;
-	// executor_client.dns_resolver = &local_dns_resolver;
-	// executor_client.timeout = 15s;
-	// executor_client.
+	boost::asio::io_context::executor_type executor = io_context.get_executor();
+	MyType some_my_type;
+	MyCustomProperty custom_property;
+	auto ret = boost::asio::require_concept(some_my_type, custom_property);
 
-	auto coro = [](const char * name) -> iofox::coro<void>
-	{
-		auto & ssl_context = iofox::get_ssl_context(co_await boost::asio::this_coro::executor);
-		fmt::print("[coro '{}'] - my ssl context is: '{}'.\n", name, (void *) &ssl_context);
-		co_return;
-	};
 
-	boost::asio::co_spawn(executor_server, coro("server"), iofox::rethrowed);
-	boost::asio::co_spawn(executor_client, coro("client"), iofox::rethrowed);
-	io_context.run();
+	// Check if the custom property is applicable to MyType
+    bool isApplicable = boost::asio::is_applicable_property<boost::asio::io_context::executor_type, MyCustomProperty>::value;
+
+    // Check if the custom property can be required by MyType
+    bool canRequire = boost::asio::can_require_concept<MyType, MyCustomProperty>::value;
 }
