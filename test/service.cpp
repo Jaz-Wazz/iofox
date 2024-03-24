@@ -26,14 +26,16 @@
 
 namespace iofox
 {
-	struct executor_wrapper: public boost::asio::io_context::executor_type
+	template <class T>
+	struct executor_wrapper: public T
 	{
 		boost::asio::ssl::context * ssl_context = nullptr;
 	};
 
+	template <class T = boost::asio::io_context::executor_type>
 	auto get_ssl_context(const boost::asio::any_io_executor & any_executor) -> boost::asio::ssl::context &
 	{
-		auto * ptr = any_executor.target<executor_wrapper>();
+		auto * ptr = any_executor.target<executor_wrapper<T>>();
 		if(ptr != nullptr) return *(ptr->ssl_context); else throw std::runtime_error("executor_not_contain_ssl_context");
 	}
 
@@ -50,6 +52,10 @@ TEST_CASE("one")
 	boost::asio::ssl::context ssl_context_client {boost::asio::ssl::context::tls};
 	auto executor_server = iofox::make_executor_wrapper(io_context, ssl_context_server);
 	auto executor_client = iofox::make_executor_wrapper(io_context, ssl_context_client);
+	// executor_client.ssl_context = &local_ssl_context;
+	// executor_client.dns_resolver = &local_dns_resolver;
+	// executor_client.timeout = 15s;
+	// executor_client.
 
 	auto coro = [](const char * name) -> iofox::coro<void>
 	{
