@@ -25,6 +25,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
+// Example usage of the custom property
+struct MyType {
+    static constexpr bool value() { return true; }
+};
+
 // Define a custom property named MyCustomProperty
 struct MyCustomProperty {
     static constexpr bool is_requirable_concept = true;
@@ -42,23 +47,19 @@ struct MyCustomProperty {
 	static constexpr bool is_applicable_property_v = true;
 };
 
-// Example usage of the custom property
-struct MyType {
-    static constexpr bool value() { return true; }
-};
-
 TEST_CASE("one")
 {
 	boost::asio::io_context io_context;
 	boost::asio::io_context::executor_type executor = io_context.get_executor();
 	MyType some_my_type;
 	MyCustomProperty custom_property;
-	auto ret = boost::asio::require_concept(some_my_type, custom_property);
-
+	// auto ret = boost::asio::require_concept(some_my_type, custom_property);
+	auto ret = boost::asio::query(some_my_type, custom_property);
 
 	// Check if the custom property is applicable to MyType
     bool isApplicable = boost::asio::is_applicable_property<boost::asio::io_context::executor_type, MyCustomProperty>::value;
 
     // Check if the custom property can be required by MyType
     bool canRequire = boost::asio::can_require_concept<MyType, MyCustomProperty>::value;
+    bool canRequirex = boost::asio::can_query<MyType, MyCustomProperty>::value;
 }
