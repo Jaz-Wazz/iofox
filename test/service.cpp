@@ -30,16 +30,24 @@ struct custom_property
 	template <class T> static constexpr bool is_applicable_property_v = true;
 };
 
-struct custom_executor
+struct custom_executor: public boost::asio::io_context::executor_type
 {
 	int i = 10;
-	int query(custom_property) { return i; }
 };
+
+int query(custom_executor executor, custom_property)
+{
+	return executor.i;
+}
 
 TEST_CASE()
 {
-	custom_executor custom_executor;
+	boost::asio::io_context io_context;
+	boost::asio::strand<boost::asio::io_context::executor_type> s = boost::asio::make_strand(io_context);
+
+	custom_executor custom_executor {io_context.get_executor()};
 	custom_property custom_property;
-	int ret = boost::asio::query(custom_executor, custom_property);
-	fmt::print("value: '{}'.\n", ret);
+	int value	= boost::asio::query(custom_executor, custom_property);
+	auto alloc	= boost::asio::query(custom_executor, boost::asio::execution::allocator);
+	fmt::print("value: '{}'.\n", value);
 }
