@@ -64,15 +64,24 @@ TEST_CASE()
 		custom_executor custom_executor {io_context.get_executor()};
 		int value		= boost::asio::query(custom_executor, custom_property_v);
 		auto & context	= boost::asio::query(custom_executor, boost::asio::execution::context);
+		fmt::print("[custom_executor] - value: '{}'.\n", value);
 	}
 	{
 		custom_any_io_executor custom_any_io_executor {io_context.get_executor()};
-		int value		= custom_any_io_executor.query(custom_property_v);
-		auto & context	= custom_any_io_executor.query(boost::asio::execution::context);
+		int value		= boost::asio::query(custom_any_io_executor, custom_property_v);
+		auto & context	= boost::asio::query(custom_any_io_executor, boost::asio::execution::context);
+		fmt::print("[custom_any_executor from io_context::executor_type] - value: '{}'.\n", value);
 	}
 	{
-		boost::asio::any_io_executor any_io_executor {io_context.get_executor()};
-		int value		= any_io_executor.query(custom_property_v);
-		auto & context	= any_io_executor.query(boost::asio::execution::context);
+		custom_executor custom_executor {io_context.get_executor()};
+		custom_any_io_executor custom_any_io_executor {custom_executor};
+		int value		= boost::asio::query(custom_any_io_executor, custom_property_v);
+		auto & context	= boost::asio::query(custom_any_io_executor, boost::asio::execution::context);
+		fmt::print("[custom_any_executor from custom_executor] - value: '{}'.\n", value);
+	}
+	{
+		// boost::asio::any_io_executor any_io_executor {io_context.get_executor()};
+		// int value		= any_io_executor.query(custom_property_v);
+		// auto & context	= any_io_executor.query(boost::asio::execution::context);
 	}
 }
