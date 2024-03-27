@@ -5,6 +5,7 @@
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/experimental/cancellation_condition.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -47,26 +48,28 @@ struct timed_initiation
 	void operator()(CompletionHandler handler, std::chrono::milliseconds timeout, Initiation&& initiation, InitArgs&&... init_args)
 	{
 		using boost::asio::experimental::make_parallel_group;
+		using boost::asio::experimental::wait_for_one;
 
 		auto ex		= boost::asio::get_associated_executor(handler, boost::asio::get_associated_executor(initiation));
 		auto alloc	= boost::asio::get_associated_allocator(handler);
 		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
 
-		make_parallel_group
-		(
-			boost::asio::bind_executor(ex, [&](auto && token)
-			{
-				return timer->async_wait(std::forward<decltype(token)>(token));
-			}),
-			boost::asio::bind_executor(ex, [&](auto && token)
-			{
-				return boost::asio::async_initiate<decltype(token), Signatures...>
-				(
-					std::forward<Initiation>(initiation), token,
-					std::forward<InitArgs>(init_args)...
-				);
-			})
-		).async_wait(boost::asio::experimental::wait_for_one(), [handler = std::move(handler), timer](std::array<std::size_t, 2>, std::error_code, auto... underlying_op_results) mutable
+		auto op_timeout = boost::asio::bind_executor(ex, [&](auto && token)
+		{
+			return timer->async_wait(std::forward<decltype(token)>(token));
+		});
+
+		auto op_underlying = boost::asio::bind_executor(ex, [&](auto && token)
+		{
+			return boost::asio::async_initiate<decltype(token), Signatures...>
+			(
+				std::forward<Initiation>(initiation), token,
+				std::forward<InitArgs>(init_args)...
+			);
+		});
+
+		auto group = make_parallel_group(op_timeout, op_underlying);
+		group.async_wait(wait_for_one(), [handler = std::move(handler), timer](std::array<std::size_t, 2>, std::error_code, auto... underlying_op_results) mutable
 		{
 			timer.reset();
 			std::move(handler)(std::move(underlying_op_results)...);
