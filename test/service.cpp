@@ -29,87 +29,24 @@
 #include <boost/asio/deferred.hpp>
 using namespace std::chrono_literals;
 
-namespace iofox
+template <typename CompletionToken>
+auto run_twice(CompletionToken&& token)
 {
-	template <class T>
-	inline auto timeout(std::chrono::steady_clock::duration duration, std::initializer_list<T> op) -> iofox::coro<int>
+    return [token = std::forward<CompletionToken>(token)](const boost::system::error_code & ec) mutable
 	{
-		co_return 0;
-	}
-
-	inline auto timeout(std::chrono::steady_clock::duration duration, auto op) -> iofox::coro<int>
-	{
-		co_return 0;
-	}
-
-	template <class T>
-	inline auto retry(auto handler, std::initializer_list<T> op) -> iofox::coro<int>
-	{
-		co_return 0;
-	}
-
-	inline auto retry(auto handler, auto op) -> iofox::coro<int>
-	{
-		co_return 0;
-	}
-
-	template <class T>
-	inline auto retry_timeout(auto handler, std::chrono::steady_clock::duration duration, std::initializer_list<T> op) -> iofox::coro<int>
-	{
-		co_return 0;
-	}
-
-	inline auto retry_timeout(auto handler, std::chrono::steady_clock::duration duration, auto op) -> iofox::coro<int>
-	{
-		co_return 0;
-	}
-
-	template <typename... T>
-	inline auto repeat(int count, boost::asio::deferred_async_operation<T...> operation) -> iofox::coro<void>
-	{
-		boost::asio::deferred_async_operation<T...> op_x = operation;
-		boost::asio::deferred_async_operation<T...> op_y = operation;
-		boost::asio::deferred_async_operation<T...> op_z = operation;
-		fmt::print(".\n");
-
-		// op_x | op_y;
-
-		// boost::asio::deferred | boost::asio::use_awaitable;
-
-
-		auto use_tuble_and_awaitable = boost::asio::as_tuple(boost::asio::use_awaitable);
-		// iofox::use_tuple | iofox::use_awaitable
-		// iofox::repeat(10, socket.async_write_some(args..., token));
-		// auto result = co_await socket.async_write_some(args..., iofox::use_repeat(10, token));
-		// auto result = co_await socket.async_write_some(args..., iofox::use_timeout(10s, iofox::use_repeat(10, token)));
-		// auto result = co_await socket.async_write_some(args..., token | iofox::use_timeout(10s) | iofox::use_repeat(10));
-		// auto result = co_await (socket.async_write_some(args..., token) | iofox::use_timeout(10s) | iofox::use_repeat(10)));
-
-		co_await std::move(op_x);
-		fmt::print(".\n");
-		co_await std::move(op_y);
-		fmt::print(".\n");
-		co_await std::move(op_z);
-		fmt::print(".\n");
-	}
-}
-
-auto coro() -> iofox::coro<void>
-{
-	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, 1s};
-
-	// fmt::print("wait 1 sec.\n");
-	// co_await timer.async_wait(iofox::use_coro);
-	// fmt::print("wait end.\n");
-
-	fmt::print("wait 1 sec.\n");
-	co_await iofox::repeat(10, timer.async_wait(boost::asio::deferred));
-	fmt::print("wait end.\n");
+        token(ec);
+        token(ec);
+    };
 }
 
 TEST_CASE()
 {
 	boost::asio::io_context io_context;
-	boost::asio::co_spawn(io_context, coro(), iofox::rethrowed);
+
+	boost::asio::steady_timer timer {io_context, 10s};
+	timer.async_wait([](auto...){ fmt::print("10s end original.\n"); });
+	timer.async_wait(run_twice([](auto...){ fmt::print("10s end custom token.\n"); }));
+
+	// boost::asio::co_spawn(io_context, coro(), iofox::rethrowed);
 	io_context.run();
 }
