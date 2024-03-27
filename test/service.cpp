@@ -33,123 +33,62 @@
 #include <boost/asio/experimental/parallel_group.hpp>
 using namespace std::chrono_literals;
 
-template <typename CompletionToken>
+template <class CompletionToken>
 struct timed_token
 {
-    std::chrono::milliseconds timeout;
-    CompletionToken& token;
+	std::chrono::milliseconds timeout;
+	CompletionToken& token;
 };
 
-// Note: this is merely a function object - a lambda.
-template <typename... Signatures>
+template <class... Signatures>
 struct timed_initiation
 {
-    template <
-        typename CompletionHandler,
-        typename Initiation,
-        typename... InitArgs>
-    void operator()(
-      CompletionHandler handler,         // the generated completion handler
-      std::chrono::milliseconds timeout, // the timeout specified in our completion token
-      Initiation&& initiation,           // the embedded operation's initiation (e.g. async_read)
-      InitArgs&&... init_args)           // the arguments passed to the embedded initiation (e.g. the async_read's buffer argument etc)
-    {
-        using boost::asio::experimental::make_parallel_group;
+	template <class CompletionHandler, class Initiation, class... InitArgs>
+	void operator()(CompletionHandler handler, std::chrono::milliseconds timeout, Initiation&& initiation, InitArgs&&... init_args)
+	{
+		using boost::asio::experimental::make_parallel_group;
 
-        // locate the correct executor associated with the underling operation
-        // first try the associated executor of the handler. If that doesn't
-        // exist, take the associated executor of the underlying async operation's handler
-        // If that doesn't exist, use the default executor (system executor currently)
-        auto ex = boost::asio::get_associated_executor(handler,
-                                                boost::asio::get_associated_executor(initiation));
+		auto ex		= boost::asio::get_associated_executor(handler, boost::asio::get_associated_executor(initiation));
+		auto alloc	= boost::asio::get_associated_allocator(handler);
+		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
 
-        // build a timer object and own it via a shared_ptr. This is because its
-        // lifetime is shared between two asynchronous chains. Use the handler's
-        // allocator in order to take advantage of the Asio recycling allocator.
-        auto alloc = boost::asio::get_associated_allocator(handler);
-        auto timer = std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
-
-        // launch a parallel group of asynchronous operations - one for the timer
-        // wait and one for the underlying asynchronous operation (i.e. async_read)
-        make_parallel_group(
-                // item 0 in the group is the timer wait
-                boost::asio::bind_executor(ex,
-                                    [&](auto&& token)
-                                    {
-                                        return timer->async_wait(std::forward<decltype(token)>(token));
-                                    }),
-                // item 1 in the group is the underlying async operation
-                boost::asio::bind_executor(ex,
-                                    [&](auto&& token)
-                                    {
-                                        // Finally, initiate the underlying operation
-                                        // passing its original arguments
-                                        return boost::asio::async_initiate<decltype(token), Signatures...>(
-                                                std::forward<Initiation>(initiation), token,
-                                                std::forward<InitArgs>(init_args)...);
-                                    })
-        ).async_wait(
-                // Wait for the first item in the group to complete. Upon completion
-                // of the first, cancel the others.
-                boost::asio::experimental::wait_for_one(),
-
-                // The completion handler for the group
-                [handler = std::move(handler), timer](
-                    // an array of indexes indicating in which order the group's
-                    // operations completed, whether successfully or not
-                    std::array<std::size_t, 2>,
-
-                    // The arguments are the result of concatenating
-                    // the completion handler arguments of all operations in the
-                    // group, in retained order:
-                    // first the steady_timer::async_wait
-                    std::error_code,
-
-                    // then the underlying operation e.g. async_read(...)
-                    auto... underlying_op_results // e.g. error_code, size_t
-                    ) mutable
-                {
-                    // release all memory prior to invoking the final handler
-                    timer.reset();
-                    // finally, invoke the handler with the results of the
-                    // underlying operation
-                    std::move(handler)(std::move(underlying_op_results)...);
-                });
-    }
+		make_parallel_group
+		(
+			boost::asio::bind_executor(ex, [&](auto && token)
+			{
+				return timer->async_wait(std::forward<decltype(token)>(token));
+			}),
+			boost::asio::bind_executor(ex, [&](auto && token)
+			{
+				return boost::asio::async_initiate<decltype(token), Signatures...>
+				(
+					std::forward<Initiation>(initiation), token,
+					std::forward<InitArgs>(init_args)...
+				);
+			})
+		).async_wait(boost::asio::experimental::wait_for_one(), [handler = std::move(handler), timer](std::array<std::size_t, 2>, std::error_code, auto... underlying_op_results) mutable
+		{
+			timer.reset();
+			std::move(handler)(std::move(underlying_op_results)...);
+		});
+	}
 };
 
-// Specialise the async_result primary template for our timed_token
-template <typename InnerCompletionToken, typename... Signatures>
-struct boost::asio::async_result<
-      timed_token<InnerCompletionToken>,  // specialised on our token type
-      Signatures...>
+template <class InnerCompletionToken, class... Signatures>
+struct boost::asio::async_result<timed_token<InnerCompletionToken>, Signatures...>
 {
-    // The implementation will call initiate on our template class with the
-    // following arguments:
-    template <typename Initiation, typename... InitArgs>
-    static auto initiate(
-        Initiation&& init, // This is the object that we invoke in order to
-                           // actually start the packaged async operation
-        timed_token<InnerCompletionToken> t, // This is the completion token that
-                                             // was passed as the last argument to the
-                                             // initiating function
-        InitArgs&&... init_args)      // any more arguments that were passed to
-                                      // the initiating function
-    {
-        // we will customise the initiation through our token by invoking
-        // async_initiate with our own custom function object called
-        // timed_initiation. We will pass it the arguments that were passed to
-        // timed(). We will also forward the initiation created by the underlying
-        // completion token plus all arguments destined for the underlying
-        // initiation.
-        return asio::async_initiate<InnerCompletionToken, Signatures...>(
-                timed_initiation<Signatures...>{},
-                  t.token,   // the underlying token
-                  t.timeout, // our timeout argument
-                std::forward<Initiation>(init),  // the underlying operation's initiation
-                std::forward<InitArgs>(init_args)... // that initiation's arguments
-        );
-    }
+	template <class Initiation, class... InitArgs>
+	static auto initiate(Initiation && init, timed_token<InnerCompletionToken> t, InitArgs &&... init_args)
+	{
+		return asio::async_initiate<InnerCompletionToken, Signatures...>
+		(
+			timed_initiation<Signatures...>{},
+			t.token,
+			t.timeout,
+			std::forward<Initiation>(init),
+			std::forward<InitArgs>(init_args)...
+		);
+	}
 };
 
 auto coro() -> iofox::coro<void>
