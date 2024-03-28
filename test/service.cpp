@@ -38,11 +38,11 @@
 
 using namespace std::chrono_literals;
 
-template <class CompletionToken>
-struct timed_token
+template <class T>
+struct custom_token_adaptor
 {
 	std::chrono::milliseconds timeout;
-	CompletionToken& token;
+	T & underlying_token;
 };
 
 template <class... Signatures>
@@ -80,16 +80,16 @@ struct timed_initiation
 };
 
 template <class InnerCompletionToken, class... Signatures>
-struct boost::asio::async_result<timed_token<InnerCompletionToken>, Signatures...>
+struct boost::asio::async_result<custom_token_adaptor<InnerCompletionToken>, Signatures...>
 {
 	template <class Initiation, class... InitArgs>
-	static auto initiate(Initiation && init, timed_token<InnerCompletionToken> t, InitArgs &&... init_args)
+	static auto initiate(Initiation && init, custom_token_adaptor<InnerCompletionToken> token, InitArgs &&... init_args)
 	{
 		return asio::async_initiate<InnerCompletionToken, Signatures...>
 		(
 			timed_initiation<Signatures...>{},
-			t.token,
-			t.timeout,
+			token.underlying_token,
+			token.timeout,
 			std::forward<Initiation>(init),
 			std::forward<InitArgs>(init_args)...
 		);
@@ -100,7 +100,7 @@ auto coro() -> iofox::coro<void>
 {
 	fmt::print("run.\n");
 	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, 5s};
-	auto [ec] = co_await timer.async_wait(boost::asio::as_tuple(timed_token{10s, iofox::use_coro}));
+	auto [ec] = co_await timer.async_wait(boost::asio::as_tuple(custom_token_adaptor{10s, iofox::use_coro}));
 	fmt::print("end, result: '{}'.\n", ec.message());
 }
 
