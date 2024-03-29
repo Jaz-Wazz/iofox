@@ -41,19 +41,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
-auto http_request(int i, char c) -> boost::asio::awaitable<void>
-{
-	fmt::print("garox.\n");
-	co_return;
-}
-
 auto custom_async_op(auto executor, auto token)
 {
 	auto impl = [](auto state) -> void
 	{
-		// fmt::print("[handler] - execute...\n");
+		fmt::print("[custom_async_op] - wait.\n");
 		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
 		co_await timer.async_wait(boost::asio::deferred);
+		fmt::print("[custom_async_op] - end.\n");
 		co_return {};
 	};
 
@@ -61,45 +56,27 @@ auto custom_async_op(auto executor, auto token)
 	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
 }
 
-auto custom_async_op_based_on_awaitable() -> iofox::coro<void>
+namespace iofox
 {
-	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, std::chrono::seconds(5)};
-	co_await timer.async_wait(boost::asio::deferred);
+	auto repeat(auto executor, int count, auto operation, auto token)
+	{
+		auto impl = [=](auto state) -> void
+		{
+			for(int i = 0; i < count; i++) co_await operation;
+			co_return {};
+		};
+
+		auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl), executor);
+		return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
+	}
 }
 
 auto coro() -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	{
-		auto op = boost::asio::co_spawn(executor, custom_async_op_based_on_awaitable(), boost::asio::deferred);
-		// auto op2 = op; // Copy compile-time error.
-	}
-	{
-		boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor};
-		auto op = timer.async_wait(boost::asio::deferred);
-		auto op2 = op;
-
-		fmt::print("[timer_deffered] - run.\n");
-		timer.expires_after(std::chrono::seconds(5)); co_await std::move(op);
-		fmt::print("[timer_deffered] - end.\n");
-
-		fmt::print("[timer_deffered] - run copy.\n");
-		timer.expires_after(std::chrono::seconds(5)); co_await std::move(op2);
-		fmt::print("[timer_deffered] - end copy.\n");
-	}
-	{
-		auto op = custom_async_op(executor, boost::asio::deferred);
-		auto op2 = op;
-
-		fmt::print("[custom_async_op_deffered] - run.\n");
-		co_await std::move(op);
-		fmt::print("[custom_async_op_deffered] - end.\n");
-
-		fmt::print("[custom_async_op_deffered] - run copy.\n");
-		co_await std::move(op2);
-		fmt::print("[custom_async_op_deffered] - end copy.\n");
-	}
+	auto op = custom_async_op(executor, boost::asio::deferred);
+	co_await iofox::repeat(executor, 3, op, iofox::use_coro);
 }
 
 TEST_CASE()
