@@ -2,8 +2,10 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/detail/type_traits.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/experimental/cancellation_condition.hpp>
 #include <boost/asio/io_context.hpp>
@@ -35,180 +37,139 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
-#include <tuple>
-#include <utility>
 
-using namespace std::chrono_literals;
-
-template <class T>
-struct custom_token_adaptor
+auto http_request(int i, char c) -> boost::asio::awaitable<void>
 {
-	std::chrono::milliseconds timeout;
-	T & underlying_token;
-};
-
-// template <class... Signatures>
-// struct timed_initiation
-// {
-// 	template <class CompletionHandler, class Initiation, class... InitArgs>
-// 	void operator()(CompletionHandler handler, std::chrono::milliseconds timeout, Initiation&& initiation, InitArgs&&... init_args)
-// 	{
-// 		using boost::asio::experimental::make_parallel_group;
-
-// 		auto ex		= boost::asio::get_associated_executor(handler, boost::asio::get_associated_executor(initiation));
-// 		auto alloc	= boost::asio::get_associated_allocator(handler);
-// 		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
-
-// 		auto completion_handler = [handler = std::move(handler)](auto && ... args) mutable
-// 		{
-// 			fmt::print("[completion_handler] - executing...\n");
-// 			std::move(handler)(std::move(args)...);
-// 		};
-
-// 		boost::asio::async_initiate<decltype(completion_handler), Signatures...>
-// 		(
-// 			std::forward<Initiation>(initiation), completion_handler,
-// 			std::forward<InitArgs>(init_args)...
-// 		);
-// 	}
-// };
-
-// template <class initiate_type, class token_type, class... init_args>
-// struct wrapped_op
-// {
-// 	initiate_type initiate;
-// 	token_type token;
-// 	std::tuple<class init_agrs...> x;
-
-// 	auto invoke()
-// 	{
-
-// 	}
-// };
-
-template <class lambd_type>
-struct wrapped_op
-{
-	lambd_type lambd;
-};
-
-template <class InnerCompletionToken, class... Signatures>
-struct boost::asio::async_result<custom_token_adaptor<InnerCompletionToken>, Signatures...>
-{
-	template <class Initiation, class... InitArgs>
-	static auto initiate(Initiation && init, custom_token_adaptor<InnerCompletionToken> token, InitArgs &&... init_args)
-	{
-		// auto lambd = [init = std::move(init), token = std::move(token.underlying_token), ...init_args = std::move(init_args)] mutable
-		// {
-		// 	return asio::async_initiate<InnerCompletionToken, Signatures...>
-		// 	(
-		// 		std::forward<Initiation>(init),
-		// 		token,
-		// 		std::forward<InitArgs>(init_args)...
-		// 	);
-		// };
-
-		// return wrapped_op{std::move(lambd)};
-
-		fmt::print("init type: '{}'.\n", boost::core::demangle(typeid(init).name()));
-
-		// Initiation init_a = boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>();
-		// Initiation init_b = boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>;
-
-		// auto handler = [](auto...)
-		// {
-		// 	fmt::print("[handler] - execute...\n");
-		// };
-
-		// asio::async_initiate<decltype(handler), Signatures...>
-		// (
-		// 	init,
-		// 	handler,
-		// 	init_args...
-		// );
-
-		// asio::async_initiate<decltype(handler), Signatures...>
-		// (
-		// 	init,
-		// 	handler,
-		// 	init_args...
-		// );
-
-		return 0;
-	}
-};
-
-auto repeat_twice(auto func) -> iofox::coro<void>
-{
-	co_await std::move(func());
-	co_await std::move(func());
-}
-
-#include <boost/asio/experimental/coro.hpp>
-#include <boost/cobalt/promise.hpp>
-
-auto operation() -> iofox::coro<void>
-{
-	fmt::print("[operation] - execute...\n");
-	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, 5s};
-	co_await timer.async_wait(iofox::use_coro);
-}
-
-auto so() -> boost::cobalt::promise<void>
-{
+	fmt::print("garox.\n");
 	co_return;
 }
 
+class custom_awaitable
+{
+
+};
+
+// namespace boost::asio
+// {
+// 	template <>
+// 	struct result_of<custom_awaitable (boost::asio::detail::awaitable_frame_base<boost::asio::any_io_executor> *)>
+// 	{
+// 		using type = boost::asio::awaitable<void>;
+// 	};
+// };
+
+#define co_generator(x) []{ return x; }
+
+template <auto & invocable>
+auto wrapped_operation(auto... args)
+{
+	return invocable(args...);
+};
+
+namespace iofox
+{
+	auto repeat(int count, auto operation) -> iofox::coro<void>
+	{
+		for(int i = 0; i < count; i++)
+		{
+			co_await std::move(operation());
+		}
+	}
+
+	auto run_multiply(auto & ref, auto... args)
+	{
+		return [=]{ return ref(args...); };
+	}
+}
+
+// #include <iostream>
+// #include <boost/asio.hpp>
+
+// using namespace boost::asio;
+
+// template <class Awaitable>
+// struct Awaiter {
+// 	int n;
+// 	Awaitable awaitable;
+
+// 	bool await_ready() { return false; }
+
+// 	template <typename Promise>
+// 	void await_suspend(auto handle) {
+// 		if (n-- > 0) {
+// 			awaitable.then([this, handle](auto&&... args) {
+// 				repeat(n, awaitable).then([handle](auto&&... args) {
+// 					handle.resume();
+// 				});
+// 			});
+// 		} else {
+// 			handle.resume();
+// 		}
+// 	}
+
+// 	void await_resume() {}
+// };
+
+// Define a coroutine that repeats the awaitable n times
+// template <typename Awaitable>
+// auto repeat(int n, Awaitable awaitable) {
+
+
+//     return Awaiter{n, std::move(awaitable)};
+// }
+
+struct custom_class
+{
+	operator boost::asio::awaitable<void> &&()
+	{
+		return {};
+	}
+};
+
 auto coro() -> iofox::coro<void>
 {
-	// auto promise = so();
-	// boost::cobalt::promise<void> promise_two = promise;
+	custom_class sas;
+	boost::asio::awaitable<void> aw {sas};
+	co_await sas;
 
-	auto handler = [](auto...)
+	co_await iofox::repeat(10, []{ return http_request(10, 'a'); });
+
+	co_await iofox::retry_timeout(10s, retry_handler, []
 	{
-		fmt::print("[handler] - execute...\n");
-	};
+		return http_request(10, 'a');
+	});
 
-	auto awaitable = repeat_twice(operation);
-	co_await(std::move(awaitable));
-	// awaitable.
+	// co_await repeat(10, http_request(10, 'a'));
 
-	// auto arg = boost::asio::detail::awaitable_as_function<void, boost::asio::any_io_executor>(operation());
+	// auto awaitable = http_request(10, 'a');
+
+	// if(!awaitable.await_ready())
+	// {
+	// 	awaitable.
+	// }
+
+	// co_await iofox::repeat(10, []{ return http_request(10, 'a'); });
+	// co_await iofox::repeat(10, co_generator(http_request(10, 'a')));
+	// co_await iofox::repeat(10, wrapped_operation<http_request>(15, 'a'));
+
+	// co_await iofox::repeat(10, iofox::run_multiply(http_request, 10, 'a'));
+
+	// co_await iofox::repeat(10, iofox::run_multiply(http_request, 10, 'a'));
+
+	// auto generator = []{ return so(); };
+	// auto generator = generator(so());
 
 
-	// boost::asio::async_initiate<decltype(handler), void(std::exception_ptr)>
-	// (
-	// 	boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>(co_await boost::asio::this_coro::executor),
-	// 	handler,
-	// 	arg
-	// );
 
-	// boost::asio::async_initiate<decltype(handler), void(std::exception_ptr)>
-	// (
-	// 	boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>(co_await boost::asio::this_coro::executor),
-	// 	handler,
-	// 	boost::asio::detail::awaitable_as_function<void, boost::asio::any_io_executor>(operation())
-	// );
+	// boost::asio::awaitable<void> awaitable = so();
+	// custom_awaitable cu_awaitable;
+	// co_await std::move(awaitable);
+	// co_await std::move(cu_awaitable);
 
-	// auto value = boost::asio::co_spawn(co_await boost::asio::this_coro::executor, operation(), custom_token_adaptor{10s, iofox::use_coro});
-	// auto x = value.lambd();
 
-	// fmt::print("run 1.\n");
-	// co_await std::move(x);
+	// boost::asio::result_of<custom_awaitable(boost::asio::detail::awaitable_frame_base<boost::asio::any_io_executor> *)>
+	// boost::asio::result_of<>;
 
-	// fmt::print("run 2.\n");
-	// co_await std::move(x);
-
-	// auto value = timer.async_wait(custom_token_adaptor{10s, iofox::use_coro});
-	// auto value_two = value.lambd();
-
-	// co_await std::move(value_two);
-	// fmt::print("end 1.\n");
-
-	// co_await std::move(value_two);
-	// fmt::print("end 2.\n");
-
-	// fmt::print("end, result: '{}'.\n", ec.message());
 	co_return;
 }
 
