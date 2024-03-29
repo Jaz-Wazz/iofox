@@ -35,6 +35,7 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
+#include <utility>
 
 using namespace std::chrono_literals;
 
@@ -57,25 +58,17 @@ struct timed_initiation
 		auto alloc	= boost::asio::get_associated_allocator(handler);
 		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
 
-		make_parallel_group
-		(
-			boost::asio::bind_executor(ex, [&](auto && token)
-			{
-				return timer->async_wait(std::forward<decltype(token)>(token));
-			}),
-			boost::asio::bind_executor(ex, [&](auto && token)
-			{
-				return boost::asio::async_initiate<decltype(token), Signatures...>
-				(
-					std::forward<Initiation>(initiation), token,
-					std::forward<InitArgs>(init_args)...
-				);
-			})
-		).async_wait(boost::asio::experimental::wait_for_one(), [handler = std::move(handler), timer](std::array<std::size_t, 2>, std::error_code, auto... underlying_op_results) mutable
+		auto completion_handler = [handler = std::move(handler)](auto && ... args) mutable
 		{
-			timer.reset();
-			std::move(handler)(std::move(underlying_op_results)...);
-		});
+			fmt::print("[completion_handler] - executing...\n");
+			std::move(handler)(std::move(args)...);
+		};
+
+		boost::asio::async_initiate<decltype(completion_handler), Signatures...>
+		(
+			std::forward<Initiation>(initiation), completion_handler,
+			std::forward<InitArgs>(init_args)...
+		);
 	}
 };
 
