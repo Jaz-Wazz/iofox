@@ -98,19 +98,54 @@ struct boost::asio::async_result<custom_token_adaptor<InnerCompletionToken>, Sig
 	template <class Initiation, class... InitArgs>
 	static auto initiate(Initiation && init, custom_token_adaptor<InnerCompletionToken> token, InitArgs &&... init_args)
 	{
-		auto lambd = [init = std::move(init), token = std::move(token.underlying_token), ...init_args = std::move(init_args)] mutable
-		{
-			return asio::async_initiate<InnerCompletionToken, Signatures...>
-			(
-				std::forward<Initiation>(init),
-				token,
-				std::forward<InitArgs>(init_args)...
-			);
-		};
+		// auto lambd = [init = std::move(init), token = std::move(token.underlying_token), ...init_args = std::move(init_args)] mutable
+		// {
+		// 	return asio::async_initiate<InnerCompletionToken, Signatures...>
+		// 	(
+		// 		std::forward<Initiation>(init),
+		// 		token,
+		// 		std::forward<InitArgs>(init_args)...
+		// 	);
+		// };
 
-		return wrapped_op{std::move(lambd)};
+		// return wrapped_op{std::move(lambd)};
+
+		fmt::print("init type: '{}'.\n", boost::core::demangle(typeid(init).name()));
+
+		// Initiation init_a = boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>();
+		// Initiation init_b = boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>;
+
+		// auto handler = [](auto...)
+		// {
+		// 	fmt::print("[handler] - execute...\n");
+		// };
+
+		// asio::async_initiate<decltype(handler), Signatures...>
+		// (
+		// 	init,
+		// 	handler,
+		// 	init_args...
+		// );
+
+		// asio::async_initiate<decltype(handler), Signatures...>
+		// (
+		// 	init,
+		// 	handler,
+		// 	init_args...
+		// );
+
+		return 0;
 	}
 };
+
+auto repeat_twice(auto func) -> iofox::coro<void>
+{
+	co_await std::move(func());
+	co_await std::move(func());
+}
+
+#include <boost/asio/experimental/coro.hpp>
+#include <boost/cobalt/promise.hpp>
 
 auto operation() -> iofox::coro<void>
 {
@@ -119,16 +154,50 @@ auto operation() -> iofox::coro<void>
 	co_await timer.async_wait(iofox::use_coro);
 }
 
+auto so() -> boost::cobalt::promise<void>
+{
+	co_return;
+}
+
 auto coro() -> iofox::coro<void>
 {
-	auto value = boost::asio::co_spawn(co_await boost::asio::this_coro::executor, operation(), custom_token_adaptor{10s, iofox::use_coro});
-	auto x = value.lambd();
+	// auto promise = so();
+	// boost::cobalt::promise<void> promise_two = promise;
 
-	fmt::print("run 1.\n");
-	co_await std::move(x);
+	auto handler = [](auto...)
+	{
+		fmt::print("[handler] - execute...\n");
+	};
 
-	fmt::print("run 2.\n");
-	co_await std::move(x);
+	auto awaitable = repeat_twice(operation);
+	co_await(std::move(awaitable));
+	// awaitable.
+
+	// auto arg = boost::asio::detail::awaitable_as_function<void, boost::asio::any_io_executor>(operation());
+
+
+	// boost::asio::async_initiate<decltype(handler), void(std::exception_ptr)>
+	// (
+	// 	boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>(co_await boost::asio::this_coro::executor),
+	// 	handler,
+	// 	arg
+	// );
+
+	// boost::asio::async_initiate<decltype(handler), void(std::exception_ptr)>
+	// (
+	// 	boost::asio::detail::initiate_co_spawn<boost::asio::any_io_executor>(co_await boost::asio::this_coro::executor),
+	// 	handler,
+	// 	boost::asio::detail::awaitable_as_function<void, boost::asio::any_io_executor>(operation())
+	// );
+
+	// auto value = boost::asio::co_spawn(co_await boost::asio::this_coro::executor, operation(), custom_token_adaptor{10s, iofox::use_coro});
+	// auto x = value.lambd();
+
+	// fmt::print("run 1.\n");
+	// co_await std::move(x);
+
+	// fmt::print("run 2.\n");
+	// co_await std::move(x);
 
 	// auto value = timer.async_wait(custom_token_adaptor{10s, iofox::use_coro});
 	// auto value_two = value.lambd();
