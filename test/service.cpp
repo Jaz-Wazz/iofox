@@ -35,6 +35,7 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
+#include <tuple>
 #include <utility>
 
 using namespace std::chrono_literals;
@@ -46,30 +47,49 @@ struct custom_token_adaptor
 	T & underlying_token;
 };
 
-template <class... Signatures>
-struct timed_initiation
+// template <class... Signatures>
+// struct timed_initiation
+// {
+// 	template <class CompletionHandler, class Initiation, class... InitArgs>
+// 	void operator()(CompletionHandler handler, std::chrono::milliseconds timeout, Initiation&& initiation, InitArgs&&... init_args)
+// 	{
+// 		using boost::asio::experimental::make_parallel_group;
+
+// 		auto ex		= boost::asio::get_associated_executor(handler, boost::asio::get_associated_executor(initiation));
+// 		auto alloc	= boost::asio::get_associated_allocator(handler);
+// 		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
+
+// 		auto completion_handler = [handler = std::move(handler)](auto && ... args) mutable
+// 		{
+// 			fmt::print("[completion_handler] - executing...\n");
+// 			std::move(handler)(std::move(args)...);
+// 		};
+
+// 		boost::asio::async_initiate<decltype(completion_handler), Signatures...>
+// 		(
+// 			std::forward<Initiation>(initiation), completion_handler,
+// 			std::forward<InitArgs>(init_args)...
+// 		);
+// 	}
+// };
+
+// template <class initiate_type, class token_type, class... init_args>
+// struct wrapped_op
+// {
+// 	initiate_type initiate;
+// 	token_type token;
+// 	std::tuple<class init_agrs...> x;
+
+// 	auto invoke()
+// 	{
+
+// 	}
+// };
+
+template <class lambd_type>
+struct wrapped_op
 {
-	template <class CompletionHandler, class Initiation, class... InitArgs>
-	void operator()(CompletionHandler handler, std::chrono::milliseconds timeout, Initiation&& initiation, InitArgs&&... init_args)
-	{
-		using boost::asio::experimental::make_parallel_group;
-
-		auto ex		= boost::asio::get_associated_executor(handler, boost::asio::get_associated_executor(initiation));
-		auto alloc	= boost::asio::get_associated_allocator(handler);
-		auto timer	= std::allocate_shared<boost::asio::steady_timer>(alloc, ex, timeout);
-
-		auto completion_handler = [handler = std::move(handler)](auto && ... args) mutable
-		{
-			fmt::print("[completion_handler] - executing...\n");
-			std::move(handler)(std::move(args)...);
-		};
-
-		boost::asio::async_initiate<decltype(completion_handler), Signatures...>
-		(
-			std::forward<Initiation>(initiation), completion_handler,
-			std::forward<InitArgs>(init_args)...
-		);
-	}
+	lambd_type lambd;
 };
 
 template <class InnerCompletionToken, class... Signatures>
@@ -78,26 +98,49 @@ struct boost::asio::async_result<custom_token_adaptor<InnerCompletionToken>, Sig
 	template <class Initiation, class... InitArgs>
 	static auto initiate(Initiation && init, custom_token_adaptor<InnerCompletionToken> token, InitArgs &&... init_args)
 	{
-		fmt::print("[async_result] - init  type: '{}'.\n", boost::core::demangle(typeid(init).name()));
-		fmt::print("[async_result] - token type: '{}'.\n", boost::core::demangle(typeid(token).name()));
+		auto lambd = [init = std::move(init), token = std::move(token.underlying_token), ...init_args = std::move(init_args)] mutable
+		{
+			return asio::async_initiate<InnerCompletionToken, Signatures...>
+			(
+				std::forward<Initiation>(init),
+				token,
+				std::forward<InitArgs>(init_args)...
+			);
+		};
 
-		return asio::async_initiate<InnerCompletionToken, Signatures...>
-		(
-			timed_initiation<Signatures...>{},
-			token.underlying_token,
-			token.timeout,
-			std::forward<Initiation>(init),
-			std::forward<InitArgs>(init_args)...
-		);
+		return wrapped_op{std::move(lambd)};
 	}
 };
 
+auto operation() -> iofox::coro<void>
+{
+	fmt::print("[operation] - execute...\n");
+	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, 5s};
+	co_await timer.async_wait(iofox::use_coro);
+}
+
 auto coro() -> iofox::coro<void>
 {
-	fmt::print("run.\n");
-	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, 5s};
-	auto [ec] = co_await timer.async_wait(boost::asio::as_tuple(custom_token_adaptor{10s, iofox::use_coro}));
-	fmt::print("end, result: '{}'.\n", ec.message());
+	auto value = boost::asio::co_spawn(co_await boost::asio::this_coro::executor, operation(), custom_token_adaptor{10s, iofox::use_coro});
+	auto x = value.lambd();
+
+	fmt::print("run 1.\n");
+	co_await std::move(x);
+
+	fmt::print("run 2.\n");
+	co_await std::move(x);
+
+	// auto value = timer.async_wait(custom_token_adaptor{10s, iofox::use_coro});
+	// auto value_two = value.lambd();
+
+	// co_await std::move(value_two);
+	// fmt::print("end 1.\n");
+
+	// co_await std::move(value_two);
+	// fmt::print("end 2.\n");
+
+	// fmt::print("end, result: '{}'.\n", ec.message());
+	co_return;
 }
 
 TEST_CASE()
