@@ -51,7 +51,7 @@ auto custom_async_op(auto executor, auto token)
 {
 	auto impl = [](auto state) -> void
 	{
-		fmt::print("[handler] - execute...\n");
+		// fmt::print("[handler] - execute...\n");
 		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
 		co_await timer.async_wait(boost::asio::deferred);
 		co_return {};
@@ -61,13 +61,45 @@ auto custom_async_op(auto executor, auto token)
 	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
 }
 
+auto custom_async_op_based_on_awaitable() -> iofox::coro<void>
+{
+	boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor, std::chrono::seconds(5)};
+	co_await timer.async_wait(boost::asio::deferred);
+}
+
 auto coro() -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	fmt::print("[coro] - run.\n");
-	co_await custom_async_op(executor, iofox::use_coro);
-	fmt::print("[coro] - end.\n");
+	{
+		auto op = boost::asio::co_spawn(executor, custom_async_op_based_on_awaitable(), boost::asio::deferred);
+		// auto op2 = op; // Copy compile-time error.
+	}
+	{
+		boost::asio::steady_timer timer {co_await boost::asio::this_coro::executor};
+		auto op = timer.async_wait(boost::asio::deferred);
+		auto op2 = op;
+
+		fmt::print("[timer_deffered] - run.\n");
+		timer.expires_after(std::chrono::seconds(5)); co_await std::move(op);
+		fmt::print("[timer_deffered] - end.\n");
+
+		fmt::print("[timer_deffered] - run copy.\n");
+		timer.expires_after(std::chrono::seconds(5)); co_await std::move(op2);
+		fmt::print("[timer_deffered] - end copy.\n");
+	}
+	{
+		auto op = custom_async_op(executor, boost::asio::deferred);
+		auto op2 = op;
+
+		fmt::print("[custom_async_op_deffered] - run.\n");
+		co_await std::move(op);
+		fmt::print("[custom_async_op_deffered] - end.\n");
+
+		fmt::print("[custom_async_op_deffered] - run copy.\n");
+		co_await std::move(op2);
+		fmt::print("[custom_async_op_deffered] - end copy.\n");
+	}
 }
 
 TEST_CASE()
