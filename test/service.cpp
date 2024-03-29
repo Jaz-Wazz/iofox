@@ -47,29 +47,26 @@ auto http_request(int i, char c) -> boost::asio::awaitable<void>
 	co_return;
 }
 
+auto custom_async_op(auto executor, auto token)
+{
+	auto impl = [](auto state) -> void
+	{
+		fmt::print("[handler] - execute...\n");
+		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
+		co_await timer.async_wait(boost::asio::deferred);
+		co_return {};
+	};
+
+	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl), executor);
+	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
+}
+
 auto coro() -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	auto handler = [](auto state) -> void
-	{
-		fmt::print("[handler] - execute...\n");
-		fmt::print("[handler] - state type: '{}'.\n", boost::core::demangle(typeid(state).name()));
-		boost::system::error_code ec;
-		// boost::asio::experimental::detail::co_composed_state
-		// auto x = ;
-		// co_yield state.complete(ec);
-
-		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
-		co_await timer.async_wait(boost::asio::deferred);
-		co_return ec;
-	};
-
-	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(handler), executor);
-
 	fmt::print("[coro] - run.\n");
-	boost::asio::use_awaitable_t<> token;
-	co_await boost::asio::async_initiate<boost::asio::use_awaitable_t<>, void(boost::system::error_code)>(std::move(sub_handler), token);
+	co_await custom_async_op(executor, iofox::use_coro);
 	fmt::print("[coro] - end.\n");
 }
 
