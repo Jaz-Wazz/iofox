@@ -17,8 +17,10 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/deferred.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
+#include <boost/asio/experimental/co_composed.hpp>
 
 // boost_system
+#include <boost/system/detail/error_code.hpp>
 #include <boost/system/error_code.hpp>
 
 // boost_core
@@ -37,6 +39,7 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
+#include <stdexcept>
 
 auto http_request(int i, char c) -> boost::asio::awaitable<void>
 {
@@ -44,133 +47,30 @@ auto http_request(int i, char c) -> boost::asio::awaitable<void>
 	co_return;
 }
 
-class custom_awaitable
-{
-
-};
-
-// namespace boost::asio
-// {
-// 	template <>
-// 	struct result_of<custom_awaitable (boost::asio::detail::awaitable_frame_base<boost::asio::any_io_executor> *)>
-// 	{
-// 		using type = boost::asio::awaitable<void>;
-// 	};
-// };
-
-#define co_generator(x) []{ return x; }
-
-template <auto & invocable>
-auto wrapped_operation(auto... args)
-{
-	return invocable(args...);
-};
-
-namespace iofox
-{
-	auto repeat(int count, auto operation) -> iofox::coro<void>
-	{
-		for(int i = 0; i < count; i++)
-		{
-			co_await std::move(operation());
-		}
-	}
-
-	auto run_multiply(auto & ref, auto... args)
-	{
-		return [=]{ return ref(args...); };
-	}
-}
-
-// #include <iostream>
-// #include <boost/asio.hpp>
-
-// using namespace boost::asio;
-
-// template <class Awaitable>
-// struct Awaiter {
-// 	int n;
-// 	Awaitable awaitable;
-
-// 	bool await_ready() { return false; }
-
-// 	template <typename Promise>
-// 	void await_suspend(auto handle) {
-// 		if (n-- > 0) {
-// 			awaitable.then([this, handle](auto&&... args) {
-// 				repeat(n, awaitable).then([handle](auto&&... args) {
-// 					handle.resume();
-// 				});
-// 			});
-// 		} else {
-// 			handle.resume();
-// 		}
-// 	}
-
-// 	void await_resume() {}
-// };
-
-// Define a coroutine that repeats the awaitable n times
-// template <typename Awaitable>
-// auto repeat(int n, Awaitable awaitable) {
-
-
-//     return Awaiter{n, std::move(awaitable)};
-// }
-
-struct custom_class
-{
-	operator boost::asio::awaitable<void> &&()
-	{
-		return {};
-	}
-};
-
 auto coro() -> iofox::coro<void>
 {
-	custom_class sas;
-	boost::asio::awaitable<void> aw {sas};
-	co_await sas;
+	auto executor = co_await boost::asio::this_coro::executor;
 
-	co_await iofox::repeat(10, []{ return http_request(10, 'a'); });
-
-	co_await iofox::retry_timeout(10s, retry_handler, []
+	auto handler = [](auto state) -> void
 	{
-		return http_request(10, 'a');
-	});
+		fmt::print("[handler] - execute...\n");
+		fmt::print("[handler] - state type: '{}'.\n", boost::core::demangle(typeid(state).name()));
+		boost::system::error_code ec;
+		// boost::asio::experimental::detail::co_composed_state
+		// auto x = ;
+		// co_yield state.complete(ec);
 
-	// co_await repeat(10, http_request(10, 'a'));
+		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
+		co_await timer.async_wait(boost::asio::deferred);
+		co_return ec;
+	};
 
-	// auto awaitable = http_request(10, 'a');
+	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(handler), executor);
 
-	// if(!awaitable.await_ready())
-	// {
-	// 	awaitable.
-	// }
-
-	// co_await iofox::repeat(10, []{ return http_request(10, 'a'); });
-	// co_await iofox::repeat(10, co_generator(http_request(10, 'a')));
-	// co_await iofox::repeat(10, wrapped_operation<http_request>(15, 'a'));
-
-	// co_await iofox::repeat(10, iofox::run_multiply(http_request, 10, 'a'));
-
-	// co_await iofox::repeat(10, iofox::run_multiply(http_request, 10, 'a'));
-
-	// auto generator = []{ return so(); };
-	// auto generator = generator(so());
-
-
-
-	// boost::asio::awaitable<void> awaitable = so();
-	// custom_awaitable cu_awaitable;
-	// co_await std::move(awaitable);
-	// co_await std::move(cu_awaitable);
-
-
-	// boost::asio::result_of<custom_awaitable(boost::asio::detail::awaitable_frame_base<boost::asio::any_io_executor> *)>
-	// boost::asio::result_of<>;
-
-	co_return;
+	fmt::print("[coro] - run.\n");
+	boost::asio::use_awaitable_t<> token;
+	co_await boost::asio::async_initiate<boost::asio::use_awaitable_t<>, void(boost::system::error_code)>(std::move(sub_handler), token);
+	fmt::print("[coro] - end.\n");
 }
 
 TEST_CASE()
