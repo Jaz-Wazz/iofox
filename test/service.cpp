@@ -85,6 +85,9 @@ struct boost::asio::async_result<custom_token_adaptor<InnerCompletionToken>, Sig
 	template <class Initiation, class... InitArgs>
 	static auto initiate(Initiation && init, custom_token_adaptor<InnerCompletionToken> token, InitArgs &&... init_args)
 	{
+		fmt::print("[async_result] - init  type: '{}'.\n", boost::core::demangle(typeid(init).name()));
+		fmt::print("[async_result] - token type: '{}'.\n", boost::core::demangle(typeid(token).name()));
+
 		return asio::async_initiate<InnerCompletionToken, Signatures...>
 		(
 			timed_initiation<Signatures...>{},
