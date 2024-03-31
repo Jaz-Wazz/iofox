@@ -46,45 +46,32 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
-auto cancellable_async_op_with_exceptions(auto executor, auto token)
+auto cancellable_async_op_without_exceptions(boost::asio::steady_timer & timer, auto token)
 {
-	auto impl = [](auto state) -> void
+	auto impl = [](auto state, boost::asio::steady_timer & timer) -> void
 	{
-		try
-		{
-			// Needed.
-			// Set by default to "false" as "boost::asio::experimental::detail::co_composed_state_cancellation" member.
-			state.throw_if_cancelled(true);
+		fmt::print("[custom_async_op] - start.\n");
+		timer.expires_after(std::chrono::seconds(5));
 
-			// Not needed.
-			// Set by default in "boost::asio::experimental::detail::co_composed_state" constructor.
-			// Documentation: "By default, terminal per-operation cancellation is enabled for composed operations that use experimental::co_composed.".
-			// state.reset_cancellation_state(boost::asio::enable_terminal_cancellation());
+		auto [ec] = co_await timer.async_wait(boost::asio::as_tuple(boost::asio::deferred));
+		if(!!state.cancelled())	co_return {boost::asio::error::operation_aborted, 0};
+		if(ec.failed())			co_return {ec, 0};
 
-			fmt::print("[custom_async_op] - start.\n");
-			boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
-			co_await timer.async_wait(boost::asio::deferred);
-			fmt::print("[custom_async_op] - end.\n");
-			co_return {{}, 15};
-		}
-		catch(const boost::system::system_error & error)
-		{
-			fmt::print("[custom_async_op] - cancel.\n");
-			co_return {error.code(), 0};
-		}
+		fmt::print("[custom_async_op] - end.\n");
+		co_return {ec, 15};
 	};
 
-	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code, int)>(std::move(impl), executor);
-	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code, int)>(std::move(sub_handler), token);
+	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code, int)>(std::move(impl), timer);
+	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code, int)>(std::move(sub_handler), token, timer);
 }
 
 boost::asio::cancellation_signal signal;
 
-auto coro() -> iofox::coro<void>
+auto coro(boost::asio::steady_timer & timer) -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	cancellable_async_op_with_exceptions(executor, boost::asio::bind_cancellation_slot(signal.slot(), [](auto ec, int value)
+	cancellable_async_op_without_exceptions(timer, boost::asio::bind_cancellation_slot(signal.slot(), [](auto ec, int value)
 	{
 		fmt::print("[completion_handler] - value: '{}', result: '{}'.\n", value, ec.message());
 	}));
@@ -95,6 +82,7 @@ TEST_CASE()
 {
 	iofox::this_thread::set_language("en_us");
 	boost::asio::io_context io_context;
-	boost::asio::co_spawn(io_context, coro(), iofox::rethrowed);
+	boost::asio::steady_timer timer {io_context};
+	boost::asio::co_spawn(io_context, coro(timer), iofox::rethrowed);
 	io_context.run();
 }
