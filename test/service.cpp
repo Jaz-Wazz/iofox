@@ -6,6 +6,8 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/cancellation_signal.hpp>
+#include <boost/asio/cancellation_type.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/experimental/cancellation_condition.hpp>
@@ -19,6 +21,7 @@
 #include <boost/asio/deferred.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <boost/asio/experimental/co_composed.hpp>
+#include <boost/asio/bind_cancellation_slot.hpp>
 
 // boost_system
 #include <boost/system/detail/error_code.hpp>
@@ -28,6 +31,7 @@
 #include <boost/core/demangle.hpp>
 
 // stl
+#include <boost/system/system_error.hpp>
 #include <chrono> // IWYU pragma: keep
 
 // iofox
@@ -42,74 +46,43 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
-template <class T = boost::asio::deferred_t>
-auto custom_async_op(auto executor, T token = boost::asio::deferred)
+auto cancellable_async_op_with_exceptions(auto executor, auto token)
 {
 	auto impl = [](auto state) -> void
 	{
-		fmt::print("[custom_async_op] - wait.\n");
-		boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
-		co_await timer.async_wait(boost::asio::deferred);
-		fmt::print("[custom_async_op] - end.\n");
-		co_return {};
+		try
+		{
+			state.throw_if_cancelled(true);
+			state.reset_cancellation_state(boost::asio::enable_terminal_cancellation());
+
+			fmt::print("[custom_async_op] - start.\n");
+			boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
+			co_await timer.async_wait(boost::asio::deferred);
+			fmt::print("[custom_async_op] - end.\n");
+			co_return {{}, 15};
+		}
+		catch(const boost::system::system_error & error)
+		{
+			fmt::print("[custom_async_op] - cancel.\n");
+			co_return {error.code(), 0};
+		}
 	};
 
-	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl), executor);
-	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
+	auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code, int)>(std::move(impl), executor);
+	return boost::asio::async_initiate<decltype(token), void(boost::system::error_code, int)>(std::move(sub_handler), token);
 }
 
-namespace iofox
-{
-	template <class T = boost::asio::deferred_t>
-	auto repeat(int count, auto operation, T token = boost::asio::deferred)
-	{
-		auto impl = [=](auto state) -> void
-		{
-			for(int i = 0; i < count; i++) co_await operation;
-			co_return {};
-		};
-
-		auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl));
-		return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
-	}
-}
+boost::asio::cancellation_signal signal;
 
 auto coro() -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	// auto op = custom_async_op(executor, boost::asio::deferred);
-	// co_await iofox::repeat(executor, 3, op, iofox::use_coro);
-
-	// co_await iofox::repeat(3, custom_async_op(executor, boost::asio::deferred), io::);
-	// co_await iofox::repeat(3, custom_async_op(executor));
-	// co_await iofox::repeat(3, socket.async_write_some(args..., iofox::deferred));
-	// co_await iofox::repeat(3, []{ return awaitable_based(args...); });
-
-	// co_await (custom_async_op(executor, iofox::deferred) | iofox::repeat(3));
-
-	// co_await custom_async_op(executor, iofox::repeat(3, iofox::deferred));
-	// co_await custom_async_op(executor, iofox::deferred | iofox::repeat(3) | iofox::as_tuple);
-
-	// iofox::http::headers headers = {{"host", "exmaple.com"}};
-	// iofox::http::request request {"GET", "/", headers};
-	// auto response = co_await iofox::http::send(executor, "http://exmaple.com", request, iofox::deffered | iofox::retry_timeout(10s, retry_handler));
-
-	// using token = iofox::deffered | iofox::timeout(10s) | iofox::retry(retry_handler);
-	// ...
-	// iofox::http::headers headers = {{"host", "exmaple.com"}};
-	// iofox::http::request request {"GET", "/", headers};
-	// auto response = co_await iofox::http::send(executor, "http://exmaple.com", request, token);
-
-	// iofox::http::headers headers = {{"host", "exmaple.com"}};
-	// iofox::http::request request {"GET", "/", headers};
-	// auto response = co_await iofox::retry_timeout(10s, retry_handler,
-	// {
-	//		iofox::http::send(executor, "http://exmaple.com", request, iofox::deffered)
-	// }, token);
-
-	// boost::asio::steady_timer timer {executor};
-	// timer.async_wait()
+	cancellable_async_op_with_exceptions(executor, boost::asio::bind_cancellation_slot(signal.slot(), [](auto ec, int value)
+	{
+		fmt::print("[completion_handler] - value: '{}', result: '{}'.\n", value, ec.message());
+	}));
+	// signal.emit(boost::asio::cancellation_type::terminal);
 }
 
 TEST_CASE()
