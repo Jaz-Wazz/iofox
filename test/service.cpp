@@ -1,6 +1,7 @@
 // boost_asio
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/as_tuple.hpp>
+#include <boost/asio/associated_executor.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/bind_executor.hpp>
@@ -41,7 +42,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
 
-auto custom_async_op(auto executor, auto token)
+template <class T = boost::asio::deferred_t>
+auto custom_async_op(auto executor, T token = boost::asio::deferred)
 {
 	auto impl = [](auto state) -> void
 	{
@@ -58,7 +60,8 @@ auto custom_async_op(auto executor, auto token)
 
 namespace iofox
 {
-	auto repeat(auto executor, int count, auto operation, auto token)
+	template <class T = boost::asio::deferred_t>
+	auto repeat(int count, auto operation, T token = boost::asio::deferred)
 	{
 		auto impl = [=](auto state) -> void
 		{
@@ -66,7 +69,7 @@ namespace iofox
 			co_return {};
 		};
 
-		auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl), executor);
+		auto sub_handler = boost::asio::experimental::co_composed<void(boost::system::error_code)>(std::move(impl));
 		return boost::asio::async_initiate<decltype(token), void(boost::system::error_code)>(std::move(sub_handler), token);
 	}
 }
@@ -75,8 +78,38 @@ auto coro() -> iofox::coro<void>
 {
 	auto executor = co_await boost::asio::this_coro::executor;
 
-	auto op = custom_async_op(executor, boost::asio::deferred);
-	co_await iofox::repeat(executor, 3, op, iofox::use_coro);
+	// auto op = custom_async_op(executor, boost::asio::deferred);
+	// co_await iofox::repeat(executor, 3, op, iofox::use_coro);
+
+	// co_await iofox::repeat(3, custom_async_op(executor, boost::asio::deferred), io::);
+	// co_await iofox::repeat(3, custom_async_op(executor));
+	// co_await iofox::repeat(3, socket.async_write_some(args..., iofox::deferred));
+	// co_await iofox::repeat(3, []{ return awaitable_based(args...); });
+
+	// co_await (custom_async_op(executor, iofox::deferred) | iofox::repeat(3));
+
+	// co_await custom_async_op(executor, iofox::repeat(3, iofox::deferred));
+	// co_await custom_async_op(executor, iofox::deferred | iofox::repeat(3) | iofox::as_tuple);
+
+	// iofox::http::headers headers = {{"host", "exmaple.com"}};
+	// iofox::http::request request {"GET", "/", headers};
+	// auto response = co_await iofox::http::send(executor, "http://exmaple.com", request, iofox::deffered | iofox::retry_timeout(10s, retry_handler));
+
+	// using token = iofox::deffered | iofox::timeout(10s) | iofox::retry(retry_handler);
+	// ...
+	// iofox::http::headers headers = {{"host", "exmaple.com"}};
+	// iofox::http::request request {"GET", "/", headers};
+	// auto response = co_await iofox::http::send(executor, "http://exmaple.com", request, token);
+
+	// iofox::http::headers headers = {{"host", "exmaple.com"}};
+	// iofox::http::request request {"GET", "/", headers};
+	// auto response = co_await iofox::retry_timeout(10s, retry_handler,
+	// {
+	//		iofox::http::send(executor, "http://exmaple.com", request, iofox::deffered)
+	// }, token);
+
+	// boost::asio::steady_timer timer {executor};
+	// timer.async_wait()
 }
 
 TEST_CASE()
