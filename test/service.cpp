@@ -53,7 +53,11 @@ auto cancellable_async_op_with_exceptions(auto executor, auto token)
 		try
 		{
 			state.throw_if_cancelled(true);
-			state.reset_cancellation_state(boost::asio::enable_terminal_cancellation());
+
+			// Not needed.
+			// Set by default in "boost::asio::experimental::detail::co_composed_state" constructor.
+			// Documentation: "By default, terminal per-operation cancellation is enabled for composed operations that use experimental::co_composed.".
+			// state.reset_cancellation_state(boost::asio::enable_terminal_cancellation());
 
 			fmt::print("[custom_async_op] - start.\n");
 			boost::asio::steady_timer timer {state.get_io_executor(), std::chrono::seconds(5)};
@@ -82,7 +86,7 @@ auto coro() -> iofox::coro<void>
 	{
 		fmt::print("[completion_handler] - value: '{}', result: '{}'.\n", value, ec.message());
 	}));
-	// signal.emit(boost::asio::cancellation_type::terminal);
+	signal.emit(boost::asio::cancellation_type::terminal);
 }
 
 TEST_CASE()
