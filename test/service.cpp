@@ -52,6 +52,8 @@ auto cancellable_async_op_with_exceptions(auto executor, auto token)
 	{
 		try
 		{
+			// Needed.
+			// Set by default to "false" as "boost::asio::experimental::detail::co_composed_state_cancellation" member.
 			state.throw_if_cancelled(true);
 
 			// Not needed.
