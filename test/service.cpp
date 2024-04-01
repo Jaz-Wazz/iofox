@@ -42,6 +42,11 @@ struct custom_property
 
 // };
 
+auto require(auto executor, custom_property prop)
+{
+	return 0;
+}
+
 int query(auto executor, custom_property prop)
 {
 	return prop.i;
@@ -63,6 +68,15 @@ TEST_CASE()
 {
 	boost::asio::io_context io_context;
 	custom_property custom_property_v;
+	boost::asio::io_context::executor_type executor = io_context.get_executor();
+	// executor.require()
+
+	using x = boost::asio::require_result_t<boost::asio::any_io_executor, custom_property>;
+
+	boost::asio::strand<boost::asio::io_context::executor_type> strand = boost::asio::make_strand(io_context);
+
+	// auto x = boost::asio::require(executor, custom_property_v);
+
 	{
 		// custom_executor custom_executor {io_context.get_executor()};
 		// auto x = boost::asio::prefer(custom_executor, custom_property_v);
@@ -73,9 +87,10 @@ TEST_CASE()
 	}
 	{
 		boost::asio::any_io_executor custom_any_io_executor {io_context.get_executor()};
+		// custom_any_io_executor.require(custom_property_v);
 		// custom_any_io_executor custom_any_io_executor {io_context.get_executor()};
 		// custom_any_io_executor = boost::asio::prefer(custom_any_io_executor, custom_property_v);
-		custom_any_io_executor = boost::asio::require(custom_any_io_executor, custom_property_v);
+		auto x = boost::asio::require(custom_any_io_executor, custom_property_v);
 
 		int value		= boost::asio::query(custom_any_io_executor, custom_property_v);
 		auto & context	= boost::asio::query(custom_any_io_executor, boost::asio::execution::context);
