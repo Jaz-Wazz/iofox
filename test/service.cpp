@@ -1,29 +1,13 @@
 // boost_asio
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/execution/allocator.hpp>
 #include <boost/asio/execution/any_executor.hpp>
-#include <boost/asio/execution/blocking.hpp>
-#include <boost/asio/execution/context.hpp>
-#include <boost/asio/execution_context.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/is_executor.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/asio/query.hpp>
-#include <boost/asio/require.hpp>
-#include <boost/asio/require_concept.hpp>
 
-// iofox
+// stl
 #include <concepts> // IWYU pragma: keep
+
+// fmt
 #include <fmt/core.h>
-#include <iofox/coro.hpp>
-#include <iofox/service.hpp>
-#include <iofox/rethrowed.hpp>
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
