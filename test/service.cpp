@@ -30,30 +30,6 @@
 #include <memory>
 #include <stdexcept>
 
-// auto require(auto executor, custom_property prop)
-// {
-// 	return custom_executor<decltype(executor)>(executor);
-// }
-
-// template <class T>
-// auto require(custom_executor<T> executor, custom_property prop)
-// {
-// 	executor.custom_property_value = prop.i;
-// 	return executor;
-// }
-
-// using custom_any_io_executor = boost::asio::execution::any_executor
-// <
-// 	class custom_property,
-// 	boost::asio::execution::context_as_t<boost::asio::execution_context&>,
-// 	boost::asio::execution::blocking_t::never_t,
-// 	boost::asio::execution::prefer_only<boost::asio::execution::blocking_t::possibly_t>,
-// 	boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::tracked_t>,
-// 	boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
-// 	boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
-// 	boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>
-// >;
-
 namespace iofox
 {
 	template <class T>
@@ -101,6 +77,7 @@ namespace iofox
 	struct custom_property_t
 	{
 		template <class T> static constexpr bool is_applicable_property_v = true;
+		static constexpr bool is_requirable = true;
 		using polymorphic_query_result_type = int;
 	};
 
@@ -109,6 +86,23 @@ namespace iofox
 	{
 		return executor.custom_property_value;
 	}
+
+	auto require(auto executor, custom_property_t prop)
+	{
+		return 0;
+	}
+
+	using any_io_executor = boost::asio::execution::any_executor
+	<
+		class iofox::custom_property_t,
+		boost::asio::execution::context_as_t<boost::asio::execution_context&>,
+		boost::asio::execution::blocking_t::never_t,
+		boost::asio::execution::prefer_only<boost::asio::execution::blocking_t::possibly_t>,
+		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::tracked_t>,
+		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
+		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
+		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>
+	>;
 }
 
 TEST_CASE()
@@ -119,4 +113,8 @@ TEST_CASE()
 
 	int value = boost::asio::query(executor, iofox::custom_property_t());
 	fmt::print("value: '{}'.\n", value);
+
+	iofox::any_io_executor any_io_executor {io_context.get_executor()};
+	// int value_2 = boost::asio::query(any_io_executor, iofox::custom_property_t());
+	// fmt::print("value 2: '{}'.\n", value_2);
 }
