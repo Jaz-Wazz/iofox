@@ -19,7 +19,7 @@
 #include <boost/asio/require_concept.hpp>
 
 // iofox
-#include <concepts>
+#include <concepts> // IWYU pragma: keep
 #include <fmt/core.h>
 #include <iofox/coro.hpp>
 #include <iofox/service.hpp>
@@ -27,8 +27,6 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
-#include <memory>
-#include <stdexcept>
 
 namespace iofox
 {
@@ -77,7 +75,7 @@ namespace iofox
 	struct custom_property_t
 	{
 		template <class T> static constexpr bool is_applicable_property_v = true;
-		static constexpr bool is_requirable = true;
+		static constexpr bool is_preferable = true;
 		using polymorphic_query_result_type = int;
 	};
 
@@ -87,21 +85,16 @@ namespace iofox
 		return executor.custom_property_value;
 	}
 
-	auto require(auto executor, custom_property_t prop)
-	{
-		return 0;
-	}
-
 	using any_io_executor = boost::asio::execution::any_executor
 	<
-		class iofox::custom_property_t,
 		boost::asio::execution::context_as_t<boost::asio::execution_context&>,
 		boost::asio::execution::blocking_t::never_t,
 		boost::asio::execution::prefer_only<boost::asio::execution::blocking_t::possibly_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::tracked_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
-		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>
+		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
+		iofox::custom_property_t
 	>;
 }
 
@@ -115,6 +108,10 @@ TEST_CASE()
 	fmt::print("value: '{}'.\n", value);
 
 	iofox::any_io_executor any_io_executor {io_context.get_executor()};
-	// int value_2 = boost::asio::query(any_io_executor, iofox::custom_property_t());
-	// fmt::print("value 2: '{}'.\n", value_2);
+	int value_2 = boost::asio::query(any_io_executor, iofox::custom_property_t());
+	fmt::print("value 2: '{}'.\n", value_2);
+
+	iofox::any_io_executor any_io_executor_2 {executor};
+	int value_3 = boost::asio::query(any_io_executor_2, iofox::custom_property_t());
+	fmt::print("value 3: '{}'.\n", value_3);
 }
