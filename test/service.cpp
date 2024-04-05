@@ -116,23 +116,6 @@ TEST_CASE()
 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
 	executor.custom_property_value = 123;
 
-	// auto executor = iofox::make_executor();
-
-	// auto executor = iofox::make_execution_tail(io_context, ssl_context, dns_resolver);
-	// iofox::send(executor, request);
-
-	// auto tail = iofox::make_tail(io_context, ssl_context, dns_resolver);
-	// iofox::send(tail, request);
-
-	// auto tail = iofox::make_execution_tail(io_context, ssl_context, dns_resolver);
-	// iofox::send(tail, request);
-
-	// auto execution_tail = iofox::make_tail(io_context, ssl_context, dns_resolver);
-	// iofox::send(execution_tail, request);
-
-	// iofox::execution_tail tail {io_context, ssl_context, dns_resolver};
-	// iofox::send(tail, request);
-
 	int value = boost::asio::query(executor, iofox::custom_property_t());
 	fmt::print("value: '{}'.\n", value);
 
