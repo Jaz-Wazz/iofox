@@ -1,6 +1,8 @@
 // boost_asio
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/execution/any_executor.hpp>
+#include <boost/asio/execution/blocking.hpp>
+#include <boost/asio/execution/context.hpp>
 #include <boost/asio/execution/executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/query.hpp>
@@ -15,17 +17,10 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
+#include <utility>
 
 namespace iofox
 {
-	template <boost::asio::execution::executor T>
-	struct packed_executor: public T
-	{
-		using inner_executor_type = T;
-		T get_inner_executor() const noexcept { return *this; }
-		int custom_property_value = 0;
-	};
-
 	struct custom_property_t
 	{
 		template <class T> static constexpr bool is_applicable_property_v = true;
@@ -35,18 +30,35 @@ namespace iofox
 		int value = 0;
 	};
 
-	template <class T>
-	int query(iofox::packed_executor<T> executor, iofox::custom_property_t)
+	template <boost::asio::execution::executor T>
+	struct packed_executor: public T
 	{
-		return executor.custom_property_value;
-	}
+		using inner_executor_type = T;
+		T get_inner_executor() const noexcept { return *this; }
+		int custom_property_value = 0;
 
-	template <class T>
-	auto require(iofox::packed_executor<T> executor, iofox::custom_property_t property)
-	{
-		executor.custom_property_value = property.value;
-		return executor;
-	}
+		int query(iofox::custom_property_t)
+		{
+			return custom_property_value;
+		}
+
+		auto require(iofox::custom_property_t property)
+		{
+			packed_executor<T> modified_executor = *this;
+			modified_executor.custom_property_value = property.value;
+			return modified_executor;
+		}
+
+		decltype(auto) query(auto && property)
+		{
+			return boost::asio::query(get_inner_executor(), std::forward<decltype(property)>(property));
+		}
+
+		decltype(auto) require(auto && property)
+		{
+			return packed_executor(boost::asio::require(get_inner_executor(), std::forward<decltype(property)>(property)));
+		}
+	};
 
 	using any_executor = boost::asio::execution::any_executor
 	<
@@ -66,7 +78,11 @@ TEST_CASE()
 	boost::asio::io_context io_context;
 	iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor {io_context.get_executor()};
 
-	auto edited_packed_executor = boost::asio::require(packed_executor, iofox::custom_property_t(32));
-	auto value = boost::asio::query(edited_packed_executor, iofox::custom_property_t());
-	fmt::print("value: '{}'.\n", value);
+	auto edited_packed_executor_x = boost::asio::require(packed_executor, iofox::custom_property_t(32));
+	auto edited_packed_executor_y = boost::asio::require(packed_executor, boost::asio::execution::blocking.never);
+	auto edited_packed_executor_z = boost::asio::prefer(packed_executor, boost::asio::execution::blocking.never);
+
+	auto value_x = boost::asio::query(edited_packed_executor_x, iofox::custom_property_t());
+	auto & value_y = boost::asio::query(edited_packed_executor_x, boost::asio::execution::context_t());
+	fmt::print("value: '{}'.\n", value_x);
 }
