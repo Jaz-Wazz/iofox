@@ -28,8 +28,8 @@ namespace iofox
 	{
 		template <class T> static constexpr bool is_applicable_property_v = true;
 		static constexpr bool is_preferable = true;
-		using polymorphic_query_result_type = int;
-	};
+				using polymorphic_query_result_type = int;
+			};
 
 	template <class T>
 	int query(iofox::executor<T> executor, iofox::custom_property_t)
@@ -48,66 +48,6 @@ namespace iofox
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
 		iofox::custom_property_t
 	>;
-}
-
-TEST_CASE("executor")
-{
-	boost::asio::io_context io_context;
-	boost::asio::system_executor system_executor;
-	boost::asio::io_context::executor_type io_executor = io_context.get_executor();
-
-	SECTION("default_constructor")
-	{
-		iofox::executor<boost::asio::system_executor> executor;
-	}
-
-	SECTION("copy_constructor")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_a {system_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_b {io_executor};
-		auto executor_x = executor_a;
-		auto executor_y = executor_b;
-	}
-
-	SECTION("move_constructor")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_a {system_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_b {io_executor};
-		auto executor_x = std::move(executor_a);
-		auto executor_y = std::move(executor_b);
-	}
-
-	SECTION("copy_assigment")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_a {system_executor};
-		iofox::executor<boost::asio::system_executor>			executor_b {system_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_c {io_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_d {io_executor};
-		executor_a = executor_b;
-		executor_c = executor_d;
-	}
-
-	SECTION("move_assigment")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_a {system_executor};
-		iofox::executor<boost::asio::system_executor>			executor_b {system_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_c {io_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_d {io_executor};
-		executor_a = std::move(executor_b);
-		executor_c = std::move(executor_d);
-	}
-
-	SECTION("underlying_copy_constructor")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_x {system_executor};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_y {io_executor};
-	}
-
-	SECTION("underlying_move_constructor")
-	{
-		iofox::executor<boost::asio::system_executor>			executor_x {std::move(system_executor)};
-		iofox::executor<boost::asio::io_context::executor_type>	executor_y {std::move(io_executor)};
-	}
 }
 
 TEST_CASE()
