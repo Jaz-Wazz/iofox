@@ -19,7 +19,7 @@
 namespace iofox
 {
 	template <boost::asio::execution::executor T>
-	struct executor: public T
+	struct packed_executor: public T
 	{
 		using inner_executor_type = T;
 		T get_inner_executor() const noexcept { return *this; }
@@ -36,19 +36,19 @@ namespace iofox
 	};
 
 	template <class T>
-	int query(iofox::executor<T> executor, iofox::custom_property_t)
+	int query(iofox::packed_executor<T> executor, iofox::custom_property_t)
 	{
 		return executor.custom_property_value;
 	}
 
 	template <class T>
-	auto require(iofox::executor<T> executor, iofox::custom_property_t property)
+	auto require(iofox::packed_executor<T> executor, iofox::custom_property_t property)
 	{
 		executor.custom_property_value = property.value;
 		return executor;
 	}
 
-	using any_io_executor = boost::asio::execution::any_executor
+	using any_executor = boost::asio::execution::any_executor
 	<
 		boost::asio::execution::context_as_t<boost::asio::execution_context&>,
 		boost::asio::execution::blocking_t::never_t,
@@ -64,88 +64,9 @@ namespace iofox
 TEST_CASE()
 {
 	boost::asio::io_context io_context;
+	iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor {io_context.get_executor()};
 
-	// SECTION("")
-	// {
-	// 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-
-	// 	auto ex_x = boost::asio::require(executor, iofox::custom_property_t(10));
-	// 	auto ex_y = boost::asio::prefer(executor, iofox::custom_property_t(10));
-	// 	auto ex_z = boost::asio::query(executor, iofox::custom_property_t());
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::any_io_executor executor {io_context.get_executor()};
-
-	// 	auto ex_x = boost::asio::prefer(executor, iofox::custom_property_t(10));
-	// 	auto ex_y = boost::asio::query(executor, iofox::custom_property_t());
-	// 	// require not allowed.
-	// }
-
-	// SECTION("any_executors_conversation")
-	// {
-	// 	boost::asio::any_io_executor	any_executor_asio	{iofox::any_io_executor(io_context.get_executor())};
-	// 	iofox::any_io_executor			any_executor_iofox	{boost::asio::any_io_executor(io_context.get_executor())};
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-
-	// 	auto modified_executor = boost::asio::require(executor, iofox::custom_property_t(32));
-	// 	fmt::print("[iofox::executor] - Require propetry value: '32'.\n");
-
-	// 	auto value = boost::asio::query(modified_executor, iofox::custom_property_t());
-	// 	fmt::print("[iofox::executor] - Query propetry value: '{}'.\n", value);
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-
-	// 	auto modified_executor = boost::asio::prefer(executor, iofox::custom_property_t(32));
-	// 	fmt::print("[iofox::executor] - Prefer propetry value: '32'.\n");
-
-	// 	auto value = boost::asio::query(modified_executor, iofox::custom_property_t());
-	// 	fmt::print("[iofox::executor] - Query propetry value: '{}'.\n", value);
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-
-	// 	auto modified_executor = boost::asio::require(executor, iofox::custom_property_t(32));
-	// 	fmt::print("[iofox::executor] - Require propetry value: '32'.\n");
-
-	// 	iofox::any_io_executor any_executor {modified_executor};
-
-	// 	auto value = boost::asio::query(any_executor, iofox::custom_property_t());
-	// 	fmt::print("[iofox::executor] - Query propetry value: '{}'.\n", value);
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-	// 	iofox::any_io_executor any_executor {executor};
-
-	// 	auto modified_executor = boost::asio::prefer(any_executor, iofox::custom_property_t(32));
-	// 	fmt::print("[iofox::executor] - Require propetry value: '32'.\n");
-
-
-	// 	auto value = boost::asio::query(modified_executor, iofox::custom_property_t());
-	// 	fmt::print("[iofox::executor] - Query propetry value: '{}'.\n", value);
-	// }
-
-	// SECTION("")
-	// {
-	// 	iofox::any_io_executor any_executor {io_context.get_executor()};
-
-	// 	auto modified_executor = boost::asio::prefer(any_executor, iofox::custom_property_t(32));
-	// 	fmt::print("[iofox::executor] - Prefer propetry value: '32'.\n");
-
-
-	// 	auto value = boost::asio::query(modified_executor, iofox::custom_property_t());
-	// 	fmt::print("[iofox::executor] - Query propetry value: '{}'.\n", value);
-	// }
+	auto edited_packed_executor = boost::asio::require(packed_executor, iofox::custom_property_t(32));
+	auto value = boost::asio::query(edited_packed_executor, iofox::custom_property_t());
+	fmt::print("value: '{}'.\n", value);
 }
