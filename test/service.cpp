@@ -52,9 +52,44 @@ namespace iofox
 
 TEST_CASE()
 {
+	// associated_executor
+	// binded_executor
+	// linked_executor
+
+	// parametric_executor
+	// integrated_executor
+	// attached_executor
+
+	// amalgamated_executor
+
+	// association_executor
+	// execution_tail
+	// tail
+	// chain
+	// execution_chain
+	// default_executor
+	// default_args_executor
+	// refered_executor
+	// wrapped_executor
+
+	// packed_executor
+	// auto executor = iofox::make_packed_executor(io_context.get_executor(), ssl_context, dns_resolver, timer);
+
+	// extended_executor
+
+	// auto executor = iofox::make_associated_executor(io_context.get_executor(), ssl_context, dns_resolver, timer);
+	// auto executor = iofox::make_associated_tail(io_context.get_executor(), ssl_context, dns_resolver, timer);
+	// auto executor = iofox::make_tail(io_context.get_executor(), ssl_context, dns_resolver, timer);
+
+	// auto executor = iofox::bind_with_executor(io_context.get_executor(), ssl_context, dns_resolver, timer);
+
+	// auto executor = iofox::make_binded_executor(io_context.get_executor(), ssl_context, dns_resolver, timer);
+
+	// auto executor = iofox::associate_executor(io_context.get_executor(), ssl_context, dns_resolver, timer);
+
 	boost::asio::io_context io_context;
-	iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
-	executor.custom_property_value = 123;
+		iofox::executor<boost::asio::io_context::executor_type> executor {io_context.get_executor()};
+executor.custom_property_value = 123;
 
 	int value = boost::asio::query(executor, iofox::custom_property_t());
 	fmt::print("value: '{}'.\n", value);
