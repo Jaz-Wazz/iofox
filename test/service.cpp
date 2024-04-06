@@ -17,7 +17,6 @@
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
-#include <utility>
 
 namespace iofox
 {
@@ -37,26 +36,26 @@ namespace iofox
 		T get_inner_executor() const noexcept { return *this; }
 		int custom_property_value = 0;
 
-		int query(iofox::custom_property_t) const
+		int query(const iofox::custom_property_t &) const
 		{
 			return custom_property_value;
 		}
 
-		auto require(iofox::custom_property_t property) const
+		auto require(const iofox::custom_property_t & property) const
 		{
 			packed_executor<T> modified_executor = *this;
 			modified_executor.custom_property_value = property.value;
 			return modified_executor;
 		}
 
-		decltype(auto) query(auto && property) const
+		decltype(auto) query(const auto & property) const
 		{
-			return boost::asio::query(get_inner_executor(), std::forward<decltype(property)>(property));
+			return boost::asio::query(get_inner_executor(), property);
 		}
 
-		decltype(auto) require(auto && property) const
+		decltype(auto) require(const auto & property) const
 		{
-			return packed_executor(boost::asio::require(get_inner_executor(), std::forward<decltype(property)>(property)));
+			return packed_executor(boost::asio::require(get_inner_executor(), property));
 		}
 	};
 
