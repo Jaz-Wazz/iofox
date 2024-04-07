@@ -14,9 +14,11 @@
 
 // fmt
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 
 // catch2
 #include <catch2/catch_test_macros.hpp>
+#include <tuple>
 
 namespace iofox
 {
@@ -109,6 +111,21 @@ TEST_CASE()
 		fmt::print("arg int: '{}'.\n", value_int);
 		fmt::print("arg char: '{}'.\n", value_char);
 	}
+
+	SECTION("downgrading")
+	{
+		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
+		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
+
+		iofox::packed_executor<boost::asio::system_executor, int> packed_executor_2 {packed_executor};
+		fmt::print("1 -> '{}'.\n", packed_executor.packed_args);
+
+		iofox::packed_executor<boost::asio::system_executor> packed_executor_3 {packed_executor};
+		fmt::print("2 -> '{}'.\n", packed_executor.packed_args);
+
+		// std::tuple<int, char> tuple;
+		// std::tuple<int> tuple_2 {tuple};
+	}
 }
 
 // Concepts:
@@ -119,3 +136,7 @@ TEST_CASE()
 // -
 // auto value = boost::asio::query(executor, iofox::packed_arg<boost::asio::ssl::context>);
 // auto value = iofox::unpack_arg<boost::asio::ssl::context>(executor);
+// auto value = iofox::unpack_arg<int>(executor);
+// -
+// auto packed_executor = iofox::make_packed_executor(executor, 10, 'a');
+// iofox::packed_executor packed_executor {executor, 64, 'a'};
