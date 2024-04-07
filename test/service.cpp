@@ -43,6 +43,9 @@ namespace iofox
 		packed_executor() = default;
 		packed_executor(const T & executor): T(executor) {}
 
+		packed_executor(const T & executor, Args... args) requires (sizeof...(Args) > 0)
+		: T(executor), packed_args(std::make_tuple(args...)) {}
+
 		template <class... AnotherArgs>
 		packed_executor(const packed_executor<T, AnotherArgs...> & other): T(other.get_inner_executor())
 		{
@@ -77,6 +80,9 @@ namespace iofox
 			return executor;
 		}
 	};
+
+	template <class T, class... Args>
+	packed_executor(T, Args...) -> packed_executor<T, Args...>;
 
 	using any_executor = boost::asio::execution::any_executor
 	<
@@ -140,11 +146,7 @@ TEST_CASE()
 
 	SECTION("downgrading - system_executor")
 	{
-		iofox::packed_executor<boost::asio::system_executor, int, char, double, long> packed_executor;
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(128));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('x'));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<double>(32.3));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<long>(44563));
+		iofox::packed_executor packed_executor {boost::asio::system_executor(), 128, 'x', 32.2, 44563l};
 		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
 
 		iofox::packed_executor<boost::asio::system_executor, double, char> packed_executor_2 {packed_executor};
@@ -157,11 +159,7 @@ TEST_CASE()
 	SECTION("downgrading - io_context::executor_type")
 	{
 		boost::asio::io_context io_context;
-		iofox::packed_executor<boost::asio::io_context::executor_type, int, char, double, long> packed_executor {io_context.get_executor()};
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(128));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('x'));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<double>(32.3));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<long>(44563));
+		iofox::packed_executor packed_executor {io_context.get_executor(), 128, 'x', 32.2, 44563l};
 		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
 
 		iofox::packed_executor<boost::asio::io_context::executor_type, double, char> packed_executor_2 {packed_executor};
