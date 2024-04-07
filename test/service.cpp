@@ -39,6 +39,9 @@ namespace iofox
 		T get_inner_executor() const noexcept { return *this; }
 		std::tuple<Args...> packed_args;
 
+		packed_executor() = default;
+		packed_executor(const T & executor): T(executor) {}
+
 		template <class X>
 		auto query(const iofox::packed_arg<X> &) const
 		{
@@ -104,6 +107,21 @@ TEST_CASE()
 
 		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(45));
 		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('b'));
+
+		auto value_int	= boost::asio::query(packed_executor, iofox::packed_arg<int>());
+		auto value_char	= boost::asio::query(packed_executor, iofox::packed_arg<char>());
+
+		fmt::print("arg int: '{}'.\n", value_int);
+		fmt::print("arg char: '{}'.\n", value_char);
+	}
+
+	SECTION("packed_executor <- io_context::executor_type")
+	{
+		boost::asio::io_context io_context;
+		iofox::packed_executor<boost::asio::io_context::executor_type, int, char> packed_executor {io_context.get_executor()};
+
+		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(66));
+		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('k'));
 
 		auto value_int	= boost::asio::query(packed_executor, iofox::packed_arg<int>());
 		auto value_char	= boost::asio::query(packed_executor, iofox::packed_arg<char>());
