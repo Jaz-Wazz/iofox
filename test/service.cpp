@@ -92,21 +92,6 @@ namespace iofox
 	>;
 }
 
-template <class... T>
-struct sliced_tuple: std::tuple<T...>
-{
-	using std::tuple<T...>::tuple;
-
-	template <class... X>
-	sliced_tuple(const sliced_tuple<T..., X...> & other)
-	: std::tuple<T...>(std::apply([](T... head, auto... tail) { return std::make_tuple(head...); }, other.as_underlying())) {}
-
-	const std::tuple<T...> & as_underlying() const
-	{
-		return *this;
-	}
-};
-
 TEST_CASE()
 {
 	SECTION("packed_executor <- system_executor")
