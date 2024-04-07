@@ -82,15 +82,17 @@ namespace iofox
 }
 
 template <class... T>
-struct packed_tuple
+struct sliced_tuple: std::tuple<T...>
 {
-	std::tuple<T...> tuple;
-	packed_tuple() = default;
+	using std::tuple<T...>::tuple;
 
 	template <class... X>
-	packed_tuple(const packed_tuple<X...> & other)
+	sliced_tuple(const sliced_tuple<T..., X...> & other)
+	: std::tuple<T...>(std::apply([](T... head, auto... tail) { return std::make_tuple(head...); }, other.as_underlying())) {}
+
+	const std::tuple<T...> & as_underlying() const
 	{
-		tuple = std::apply([](T... head, auto... tail) { return std::make_tuple(head...); }, other.tuple);
+		return *this;
 	}
 };
 
@@ -127,12 +129,11 @@ TEST_CASE()
 
 	SECTION("downgrading")
 	{
-		packed_tuple<int, char, short, double, long> packed_tuple_1;
-		packed_tuple_1.tuple = {42, 'a', 43.3, 55.56, 45678};
-		fmt::print("0 -> '{}'.\n", packed_tuple_1.tuple);
+		sliced_tuple<int, char, short, double, long> tuple_1 = {42, 'a', 43.3, 55.56, 45678};
+		fmt::print("0 -> '{}'.\n", tuple_1.as_underlying());
 
-		packed_tuple<int, char, short> packed_tuple_2 {packed_tuple_1};
-		fmt::print("1 -> '{}'.\n", packed_tuple_2.tuple);
+		sliced_tuple<int, char, short> tuple_2 {tuple_1};
+		fmt::print("1 -> '{}'.\n", tuple_2.as_underlying());
 	}
 }
 
