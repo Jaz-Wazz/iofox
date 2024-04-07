@@ -81,6 +81,19 @@ namespace iofox
 	>;
 }
 
+template <class... T>
+struct packed_tuple
+{
+	std::tuple<T...> tuple;
+	packed_tuple() = default;
+
+	template <class... X>
+	packed_tuple(const packed_tuple<X...> & other)
+	{
+		tuple = std::apply([](T... head, auto... tail) { return std::make_tuple(head...); }, other.tuple);
+	}
+};
+
 TEST_CASE()
 {
 	SECTION("packed_executor <- system_executor")
@@ -114,17 +127,12 @@ TEST_CASE()
 
 	SECTION("downgrading")
 	{
-		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
-		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
+		packed_tuple<int, char, short, double, long> packed_tuple_1;
+		packed_tuple_1.tuple = {42, 'a', 43.3, 55.56, 45678};
+		fmt::print("0 -> '{}'.\n", packed_tuple_1.tuple);
 
-		iofox::packed_executor<boost::asio::system_executor, int> packed_executor_2 {packed_executor};
-		fmt::print("1 -> '{}'.\n", packed_executor.packed_args);
-
-		iofox::packed_executor<boost::asio::system_executor> packed_executor_3 {packed_executor};
-		fmt::print("2 -> '{}'.\n", packed_executor.packed_args);
-
-		// std::tuple<int, char> tuple;
-		// std::tuple<int> tuple_2 {tuple};
+		packed_tuple<int, char, short> packed_tuple_2 {packed_tuple_1};
+		fmt::print("1 -> '{}'.\n", packed_tuple_2.tuple);
 	}
 }
 
