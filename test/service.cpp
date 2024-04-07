@@ -20,31 +20,34 @@
 
 namespace iofox
 {
-	struct custom_property_t
+	template <class T>
+	struct packed_arg
 	{
-		template <class T> static constexpr bool is_applicable_property_v = true;
+		template <class X> static constexpr bool is_applicable_property_v = true;
 		static constexpr bool is_preferable = true;
 		static constexpr bool is_requirable = true;
-		using polymorphic_query_result_type = int;
-		int value = 0;
+		using polymorphic_query_result_type = T;
+		T value {};
 	};
 
-	template <boost::asio::execution::executor T>
+	template <boost::asio::execution::executor T, class... Args>
 	struct packed_executor: public T
 	{
 		using inner_executor_type = T;
 		T get_inner_executor() const noexcept { return *this; }
-		int custom_property_value = 0;
+		std::tuple<Args...> packed_args;
 
-		int query(const iofox::custom_property_t &) const
+		template <class X>
+		auto query(const iofox::packed_arg<X> &) const
 		{
-			return custom_property_value;
+			return std::get<X>(packed_args);
 		}
 
-		auto require(const iofox::custom_property_t & property) const
+		template <class X>
+		auto require(const iofox::packed_arg<X> & packed_arg) const
 		{
-			packed_executor<T> executor = *this;
-			executor.custom_property_value = property.value;
+			packed_executor<T, Args...> executor = *this;
+			std::get<X>(executor.packed_args) = packed_arg.value;
 			return executor;
 		}
 
@@ -56,8 +59,8 @@ namespace iofox
 		decltype(auto) require(const auto & property) const requires boost::asio::can_require_v<T, decltype(property)>
 		{
 			auto underlying_executor = boost::asio::require(get_inner_executor(), property);
-			packed_executor<decltype(underlying_executor)> executor {underlying_executor};
-			executor.custom_property_value = custom_property_value;
+			packed_executor<decltype(underlying_executor), Args...> executor {underlying_executor};
+			executor.packed_args = packed_args;
 			return executor;
 		}
 	};
@@ -71,50 +74,48 @@ namespace iofox
 		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
-		boost::asio::execution::prefer_only<iofox::custom_property_t>
+		boost::asio::execution::prefer_only<iofox::packed_arg<int>>,
+		boost::asio::execution::prefer_only<iofox::packed_arg<char>>
 	>;
 }
 
 TEST_CASE()
 {
-	SECTION("packed_executor <- io_context_executor")
+	SECTION("packed_executor <- system_executor")
 	{
-		boost::asio::io_context io_context;
-		iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor {io_context.get_executor()};
+		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
 
-		packed_executor = boost::asio::require(packed_executor, iofox::custom_property_t(64));
-		packed_executor = boost::asio::require(packed_executor, boost::asio::execution::blocking.never);
-		packed_executor = boost::asio::prefer(packed_executor, boost::asio::execution::blocking.never);
+		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(45));
+		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('b'));
 
-		auto value_x	= boost::asio::query(packed_executor, iofox::custom_property_t());
-		auto & value_y	= boost::asio::query(packed_executor, boost::asio::execution::context_t());
-		fmt::print("value 1: '{}'.\n", value_x);
-	}
+		auto value_int	= boost::asio::query(packed_executor, iofox::packed_arg<int>());
+		auto value_char	= boost::asio::query(packed_executor, iofox::packed_arg<char>());
 
-	SECTION("any_executor <- packed_executor <- io_context_executor")
-	{
-		boost::asio::io_context io_context;
-		iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor {io_context.get_executor()};
-		iofox::any_executor any_executor {packed_executor};
-
-		any_executor = boost::asio::prefer(any_executor, iofox::custom_property_t(128));
-		any_executor = boost::asio::prefer(any_executor, boost::asio::execution::blocking.never);
-
-		auto value_x	= boost::asio::query(any_executor, iofox::custom_property_t());
-		auto & value_y	= boost::asio::query(any_executor, boost::asio::execution::context);
-		fmt::print("value 2: '{}'.\n", value_x);
+		fmt::print("arg int: '{}'.\n", value_int);
+		fmt::print("arg char: '{}'.\n", value_char);
 	}
 
 	SECTION("any_executor <- packed_executor <- system_executor")
 	{
-		iofox::packed_executor<boost::asio::system_executor> packed_executor;
+		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
 		iofox::any_executor any_executor {packed_executor};
 
-		any_executor = boost::asio::prefer(any_executor, iofox::custom_property_t(256));
-		any_executor = boost::asio::prefer(any_executor, boost::asio::execution::blocking.never);
+		any_executor = boost::asio::prefer(any_executor, iofox::packed_arg<int>(88));
+		any_executor = boost::asio::prefer(any_executor, iofox::packed_arg<char>('g'));
 
-		auto value_x	= boost::asio::query(any_executor, iofox::custom_property_t());
-		auto & value_y	= boost::asio::query(any_executor, boost::asio::execution::context);
-		fmt::print("value 3: '{}'.\n", value_x);
+		auto value_int	= boost::asio::query(any_executor, iofox::packed_arg<int>());
+		auto value_char	= boost::asio::query(any_executor, iofox::packed_arg<char>());
+
+		fmt::print("arg int: '{}'.\n", value_int);
+		fmt::print("arg char: '{}'.\n", value_char);
 	}
 }
+
+// Concepts:
+// -
+// iofox::packed_executor<iofox::property::ssl_context, iofox::property::dns_resolver> executor;
+// iofox::packed_executor<boost::asio::ssl_context, boost::asio::ip::tcp::resolver> executor;
+// iofox::packed_executor<boost::asio::steady_timer> executor;
+// -
+// auto value = boost::asio::query(executor, iofox::packed_arg<boost::asio::ssl::context>);
+// auto value = iofox::unpack_arg<boost::asio::ssl::context>(executor);
