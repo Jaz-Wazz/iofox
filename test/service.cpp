@@ -4,13 +4,18 @@
 #include <boost/asio/execution/blocking.hpp>
 #include <boost/asio/execution/context.hpp>
 #include <boost/asio/execution/executor.hpp>
+#include <boost/asio/executor.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/query.hpp>
 #include <boost/asio/require.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/system_executor.hpp>
 
 // stl
 #include <concepts> // IWYU pragma: keep
+#include <stdexcept>
 #include <type_traits>
 
 // fmt
@@ -93,87 +98,65 @@ namespace iofox
 		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
-		boost::asio::execution::prefer_only<iofox::packed_arg<int>>,
-		boost::asio::execution::prefer_only<iofox::packed_arg<char>>
+		boost::asio::execution::prefer_only<iofox::packed_arg<int *>>,
+		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
 	>;
+
+	// template <class T>
+	// inline auto unpack_arg(const boost::asio::execution::executor auto & executor)
+	// {
+	// 	return boost::asio::query(executor, iofox::packed_arg<T>());
+	// }
+
+	template <class T>
+	inline T & unpack_arg(const boost::asio::execution::executor auto & executor)
+	{
+		T * ptr = boost::asio::query(executor, iofox::packed_arg<T *>());
+		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
+	}
+
+	[[nodiscard]] inline auto pack_args(const boost::asio::execution::executor auto & executor, auto &... args)
+	{
+		return iofox::packed_executor(executor, &args...);
+	}
 }
 
 TEST_CASE()
 {
-	SECTION("packed_executor <- system_executor")
-	{
-		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
+	// int int_value = 10;
 
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(45));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('b'));
+	// iofox::packed_executor packed_executor {boost::asio::system_executor(), &int_value};
+	// packed_executor	= boost::asio::require(packed_executor, iofox::packed_arg<int *>(&int_value));
+	// auto value_x	= boost::asio::query(packed_executor, iofox::packed_arg<int *>());
 
-		auto value_int	= boost::asio::query(packed_executor, iofox::packed_arg<int>());
-		auto value_char	= boost::asio::query(packed_executor, iofox::packed_arg<char>());
+	// iofox::any_executor any_executor {packed_executor};
+	// any_executor	= boost::asio::prefer(any_executor, iofox::packed_arg<int *>(&int_value));
+	// auto value_y	= boost::asio::query(any_executor, iofox::packed_arg<int *>());
 
-		fmt::print("arg int: '{}'.\n", value_int);
-		fmt::print("arg char: '{}'.\n", value_char);
-	}
+	// auto packed_executor = iofox::pack_args(executor, int_value);
 
-	SECTION("packed_executor <- io_context::executor_type")
-	{
-		boost::asio::io_context io_context;
-		iofox::packed_executor<boost::asio::io_context::executor_type, int, char> packed_executor {io_context.get_executor()};
+	// After.
+	// auto & value_q = iofox::unpack_arg<int>(packed_executor);
+	// auto & value_w = iofox::unpack_arg<int>(any_executor);
 
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(66));
-		packed_executor = boost::asio::require(packed_executor, iofox::packed_arg<char>('k'));
+	int int_value = 10;
+	char char_value = 'c';
 
-		auto value_int	= boost::asio::query(packed_executor, iofox::packed_arg<int>());
-		auto value_char	= boost::asio::query(packed_executor, iofox::packed_arg<char>());
+	auto packed_executor = iofox::pack_args(boost::asio::system_executor(), int_value, char_value);
+	auto value_x = iofox::unpack_arg<int>(packed_executor);
+	auto value_y = iofox::unpack_arg<char>(packed_executor);
 
-		fmt::print("arg int: '{}'.\n", value_int);
-		fmt::print("arg char: '{}'.\n", value_char);
-	}
+	// real word.
+	boost::asio::io_context io_context;
+	boost::asio::steady_timer timer {io_context};
+	boost::asio::ssl::context ssl_context {boost::asio::ssl::context::tls};
+	boost::asio::ip::tcp::resolver dns_resolver {io_context};
 
-	SECTION("any_executor <- packed_executor <- system_executor")
-	{
-		iofox::packed_executor<boost::asio::system_executor, int, char> packed_executor;
-		iofox::any_executor any_executor {packed_executor};
+	auto server_ex = iofox::pack_args(io_context.get_executor(), timer, ssl_context, dns_resolver);
 
-		any_executor = boost::asio::prefer(any_executor, iofox::packed_arg<int>(88));
-		any_executor = boost::asio::prefer(any_executor, iofox::packed_arg<char>('g'));
-
-		auto value_int	= boost::asio::query(any_executor, iofox::packed_arg<int>());
-		auto value_char	= boost::asio::query(any_executor, iofox::packed_arg<char>());
-
-		fmt::print("arg int: '{}'.\n", value_int);
-		fmt::print("arg char: '{}'.\n", value_char);
-	}
-
-	SECTION("downgrading - system_executor")
-	{
-		iofox::packed_executor packed_executor {boost::asio::system_executor(), 128, 'x', 32.2, 44563l};
-		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
-
-		iofox::packed_executor<boost::asio::system_executor, double, char> packed_executor_2 {packed_executor};
-		fmt::print("1 -> '{}'.\n", packed_executor_2.packed_args);
-
-		iofox::packed_executor<boost::asio::system_executor> packed_executor_3 {packed_executor_2};
-		fmt::print("2 -> '{}'.\n", packed_executor_3.packed_args);
-	}
-
-	SECTION("downgrading - io_context::executor_type")
-	{
-		boost::asio::io_context io_context;
-		iofox::packed_executor packed_executor {io_context.get_executor(), 128, 'x', 32.2, 44563l};
-		fmt::print("0 -> '{}'.\n", packed_executor.packed_args);
-
-		iofox::packed_executor<boost::asio::io_context::executor_type, double, char> packed_executor_2 {packed_executor};
-		fmt::print("1 -> '{}'.\n", packed_executor_2.packed_args);
-
-		iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor_3 {packed_executor_2};
-		fmt::print("2 -> '{}'.\n", packed_executor_3.packed_args);
-	}
-
-	SECTION("partially arguments")
-	{
-		iofox::packed_executor packed_executor {boost::asio::system_executor(), 15};
-		iofox::any_executor any_executor {packed_executor};
-	}
+	auto & ref_timer		= iofox::unpack_arg<boost::asio::steady_timer>(server_ex);
+	auto & ref_ssl_context	= iofox::unpack_arg<boost::asio::ssl::context>(server_ex);
+	auto & ref_dns_resolver	= iofox::unpack_arg<boost::asio::ip::tcp::resolver>(server_ex);
 }
 
 // Concepts:
