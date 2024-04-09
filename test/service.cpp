@@ -102,72 +102,45 @@ namespace iofox
 		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
 	>;
 
-	// template <class T>
-	// inline auto unpack_arg(const boost::asio::execution::executor auto & executor)
-	// {
-	// 	return boost::asio::query(executor, iofox::packed_arg<T>());
-	// }
-
 	template <class T>
-	inline T & unpack_arg(const boost::asio::execution::executor auto & executor)
-	{
-		T * ptr = boost::asio::query(executor, iofox::packed_arg<T *>());
-		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
-	}
+	concept executor = boost::asio::execution::executor<T>;
 
-	[[nodiscard]] inline auto pack_args(const boost::asio::execution::executor auto & executor, auto &... args)
+	template <class T, class... Args>
+	concept unpackable_executor = requires(T executor)
 	{
-		return iofox::packed_executor(executor, &args...);
-	}
+		(boost::asio::query(executor, iofox::packed_arg<Args>()), ...);
+	};
+}
+
+template <iofox::executor T>
+void some_async_operation(T executor, int value_int, char value_char)
+{
+	fmt::print("[some_async_operation] - int: '{}', char: '{}'.\n", value_int, value_char);
+}
+
+template <iofox::unpackable_executor<int *, char *> T>
+void some_async_operation(T executor)
+{
+	int * ptr_int	= boost::asio::query(executor, iofox::packed_arg<int *>());
+	char * ptr_char	= boost::asio::query(executor, iofox::packed_arg<char *>());
+	some_async_operation(executor, *ptr_int, *ptr_char);
 }
 
 TEST_CASE()
 {
-	// int int_value = 10;
-
-	// iofox::packed_executor packed_executor {boost::asio::system_executor(), &int_value};
-	// packed_executor	= boost::asio::require(packed_executor, iofox::packed_arg<int *>(&int_value));
-	// auto value_x	= boost::asio::query(packed_executor, iofox::packed_arg<int *>());
-
-	// iofox::any_executor any_executor {packed_executor};
-	// any_executor	= boost::asio::prefer(any_executor, iofox::packed_arg<int *>(&int_value));
-	// auto value_y	= boost::asio::query(any_executor, iofox::packed_arg<int *>());
-
-	// auto packed_executor = iofox::pack_args(executor, int_value);
-
-	// After.
-	// auto & value_q = iofox::unpack_arg<int>(packed_executor);
-	// auto & value_w = iofox::unpack_arg<int>(any_executor);
-
 	int int_value = 10;
-	char char_value = 'c';
+	char c = 'a';
+	iofox::packed_executor packed_executor_ok	{boost::asio::system_executor(), &c, &int_value};
+	iofox::packed_executor packed_executor_fail	{boost::asio::system_executor(), &c};
+	iofox::any_executor any_executor;
 
-	auto packed_executor = iofox::pack_args(boost::asio::system_executor(), int_value, char_value);
-	auto value_x = iofox::unpack_arg<int>(packed_executor);
-	auto value_y = iofox::unpack_arg<char>(packed_executor);
+	// Full signature.
+	some_async_operation(boost::asio::system_executor(), 15, 'a');
+	some_async_operation(any_executor, 15, 'a');
+	some_async_operation(packed_executor_ok, 15, 'a');
 
-	// real word.
-	boost::asio::io_context io_context;
-	boost::asio::steady_timer timer {io_context};
-	boost::asio::ssl::context ssl_context {boost::asio::ssl::context::tls};
-	boost::asio::ip::tcp::resolver dns_resolver {io_context};
-
-	auto server_ex = iofox::pack_args(io_context.get_executor(), timer, ssl_context, dns_resolver);
-
-	auto & ref_timer		= iofox::unpack_arg<boost::asio::steady_timer>(server_ex);
-	auto & ref_ssl_context	= iofox::unpack_arg<boost::asio::ssl::context>(server_ex);
-	auto & ref_dns_resolver	= iofox::unpack_arg<boost::asio::ip::tcp::resolver>(server_ex);
+	// Agruments from packed_executor.
+	some_async_operation(any_executor);
+	some_async_operation(packed_executor_ok);
+	// some_async_operation(packed_executor_fail);
 }
-
-// Concepts:
-// -
-// iofox::packed_executor<iofox::property::ssl_context, iofox::property::dns_resolver> executor;
-// iofox::packed_executor<boost::asio::ssl_context, boost::asio::ip::tcp::resolver> executor;
-// iofox::packed_executor<boost::asio::steady_timer> executor;
-// -
-// auto value = boost::asio::query(executor, iofox::packed_arg<boost::asio::ssl::context>);
-// auto value = iofox::unpack_arg<boost::asio::ssl::context>(executor);
-// auto value = iofox::unpack_arg<int>(executor);
-// -
-// auto packed_executor = iofox::make_packed_executor(executor, 10, 'a');
-// iofox::packed_executor packed_executor {executor, 64, 'a'};
