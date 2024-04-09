@@ -54,13 +54,13 @@ namespace iofox
 		}
 
 		template <class X>
-		auto query(const iofox::packed_arg<X> &) const
+		auto query(const iofox::packed_arg<X> &) const requires (std::same_as<X, Args> || ...)
 		{
 			return std::get<X>(packed_args);
 		}
 
 		template <class X>
-		auto require(const iofox::packed_arg<X> & packed_arg) const
+		auto require(const iofox::packed_arg<X> & packed_arg) const requires (std::same_as<X, Args> || ...)
 		{
 			packed_executor<T, Args...> executor = *this;
 			std::get<X>(executor.packed_args) = packed_arg.value;
@@ -167,6 +167,12 @@ TEST_CASE()
 
 		iofox::packed_executor<boost::asio::io_context::executor_type> packed_executor_3 {packed_executor_2};
 		fmt::print("2 -> '{}'.\n", packed_executor_3.packed_args);
+	}
+
+	SECTION("partially arguments")
+	{
+		iofox::packed_executor packed_executor {boost::asio::system_executor(), 15};
+		iofox::any_executor any_executor {packed_executor};
 	}
 }
 
