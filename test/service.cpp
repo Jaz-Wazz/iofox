@@ -102,45 +102,27 @@ namespace iofox
 		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
 	>;
 
-	template <class T>
-	concept executor = boost::asio::execution::executor<T>;
-
-	template <class T, class... Args>
-	concept unpackable_executor = requires(T executor)
+	struct custom_any_executor: iofox::any_executor
 	{
-		(boost::asio::query(executor, iofox::packed_arg<Args>()), ...);
+		template <class T>
+		auto & query(const iofox::packed_arg<T> & property) const
+		{
+			auto * ptr = boost::asio::query(static_cast<iofox::any_executor>(*this), property);
+			return (ptr != nullptr) ? *ptr : throw std::runtime_error("bad_property_access");
+		}
+
+		decltype(auto) query(const auto & property) const
+		{
+			return boost::asio::query(static_cast<iofox::any_executor>(*this), property);
+		}
 	};
-}
-
-template <iofox::executor T>
-void some_async_operation(T executor, int value_int, char value_char)
-{
-	fmt::print("[some_async_operation] - int: '{}', char: '{}'.\n", value_int, value_char);
-}
-
-template <iofox::unpackable_executor<int *, char *> T>
-void some_async_operation(T executor)
-{
-	int * ptr_int	= boost::asio::query(executor, iofox::packed_arg<int *>());
-	char * ptr_char	= boost::asio::query(executor, iofox::packed_arg<char *>());
-	some_async_operation(executor, *ptr_int, *ptr_char);
 }
 
 TEST_CASE()
 {
-	int int_value = 10;
-	char c = 'a';
-	iofox::packed_executor packed_executor_ok	{boost::asio::system_executor(), &c, &int_value};
-	iofox::packed_executor packed_executor_fail	{boost::asio::system_executor(), &c};
-	iofox::any_executor any_executor;
-
-	// Full signature.
-	some_async_operation(boost::asio::system_executor(), 15, 'a');
-	some_async_operation(any_executor, 15, 'a');
-	some_async_operation(packed_executor_ok, 15, 'a');
-
-	// Agruments from packed_executor.
-	some_async_operation(any_executor);
-	some_async_operation(packed_executor_ok);
-	// some_async_operation(packed_executor_fail);
+	int i = 10;
+	iofox::packed_executor packed_executor {boost::asio::system_executor(), &i};
+	iofox::custom_any_executor custom_any_executor {packed_executor};
+	auto & value_x	= boost::asio::query(custom_any_executor, iofox::packed_arg<int *>());
+	auto & value_y	= boost::asio::query(custom_any_executor, boost::asio::execution::context);
 }
