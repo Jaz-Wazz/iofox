@@ -120,6 +120,34 @@ namespace iofox
 
 TEST_CASE()
 {
+	// Внутри - указатели, Снаружи - ссылки.
+	// Внутри - значения, Снаружи значения.
+
+	// iofox::ssl_context ssl_contex;
+	// iofox::dns_resolver dns_resolver;
+	// iofox::steady_timer steady_timer;
+	// ...
+	// iofox::packed_executor packed_executor {boost::asio::system_executor(), ssl_context, dns_resolver, steady_timer};
+	// ...
+	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context &>());
+
+	// iofox::ssl_context ssl_contex;
+	// iofox::dns_resolver dns_resolver;
+	// iofox::steady_timer steady_timer;
+	// ...
+	// iofox::packed_executor packed_executor {boost::asio::system_executor(), &ssl_context, &dns_resolver, &steady_timer};
+	// ...
+	// auto * value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context *>());
+
+	// iofox::ssl_context ssl_contex;
+	// iofox::dns_resolver dns_resolver;
+	// iofox::steady_timer steady_timer;
+	// ...
+	// iofox::packed_executor packed_executor {boost::asio::system_executor(), ssl_context, dns_resolver, steady_timer};
+	// ...
+	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context &>());
+	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context *>());
+
 	int i = 10;
 	iofox::packed_executor packed_executor {boost::asio::system_executor(), &i};
 	iofox::custom_any_executor custom_any_executor {packed_executor};
