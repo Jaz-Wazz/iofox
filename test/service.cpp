@@ -120,6 +120,15 @@ namespace iofox
 
 TEST_CASE()
 {
+	// retry_handler - Спортный момент.
+	// Он должен быть ОДНОГО ТИПА, для использования как iofox::packed_arg<T>.
+	// А может он быть:
+	// - Function ptr with void() signature.
+	// - Function ptr with void(auto handler) signature.
+	// - Callable (lambd) with with void() signature.
+	// - Callable (lambd) with void(auto handler) signature.
+	// - Каллабля или фонкщшон поинтер с void() но с возвратом -> iofox::coro
+
 	// Внутри - указатели, Снаружи - ссылки.
 	// Внутри - значения, Снаружи значения.
 
