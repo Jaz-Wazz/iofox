@@ -120,6 +120,34 @@ namespace iofox
 
 TEST_CASE()
 {
+	// Construct by reference OR pointer.
+	// iofox::packed_executor packed_executor {ref_a, ref_b, ptr_a, ptr_b};
+
+	// Set by reference OR pointer.
+	// boost::asio::require(packed_executor, iofox::packed_arg<int &>(ref_a));
+	// boost::asio::require(packed_executor, iofox::packed_arg<int *>(ptr_a));
+
+	// Get by reference OR pointer.
+	// auto ref_a = boost::asio::query(packed_executor, iofox::packed_arg<int &>());
+	// auto ptr_a = boost::asio::query(packed_executor, iofox::packed_arg<int *>());
+	// ...
+	// auto value = boost::asio::query(packed_executor, iofox::packed_arg<int>());
+
+	// reference_arg<int>
+	// value_arg<int>
+	// pointer_argt<int>
+
+	// packed_value
+	// packed_referece
+	// packed_pointer
+
+	// - Хранилище уникальных типов, но они DefaultInitializable. (some value and pointers)
+	// - Хранилище уникальных ссылок и указателей.
+
+	// - Значение, но оно должно быть DefaultInitializable.	(В случае отсутсвия: Значение по умолчанию.)
+	// - Указатель.											(В случае отсутсвия: Указатель на nullptr.)
+	// - Ссылку.											(В случае отсутсвия: Exception.)
+
 	// retry_handler - Спортный момент.
 	// Он должен быть ОДНОГО ТИПА, для использования как iofox::packed_arg<T>.
 	// А может он быть:
