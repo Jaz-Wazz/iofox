@@ -109,11 +109,15 @@ namespace iofox
 		(boost::asio::query(executor, iofox::packed_arg<Args>()), ...);
 	};
 
-	template <class T>
-	inline T & unpack_arg(const boost::asio::execution::executor auto & executor)
+	template <class T, iofox::unpackable_executor<T> E>
+	inline decltype(auto) unpack_arg(const E & executor)
 	{
-		T * ptr = boost::asio::query(executor, iofox::packed_arg<T *>());
-		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
+		if constexpr(std::is_pointer_v<T>)
+		{
+			auto * ptr = boost::asio::query(executor, iofox::packed_arg<T>());
+			return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
+		}
+		else return boost::asio::query(executor, iofox::packed_arg<T>());
 	}
 
 	template <boost::asio::execution::executor T, class... Args>
@@ -130,11 +134,12 @@ void some_async_operation(const T & executor, int value_int, char value_char)
 	fmt::print("[some_async_operation] - int: '{}', char: '{}'.\n", value_int, value_char);
 }
 
-template <iofox::unpackable_executor<int *, char *> T>
+template <iofox::unpackable_executor<int *, char *, int> T>
 void some_async_operation(const T & executor)
 {
-	int & ptr_int	= iofox::unpack_arg<int>(executor);
-	char & ptr_char	= iofox::unpack_arg<char>(executor);
+	int val_int		= iofox::unpack_arg<int>(executor);
+	int & ptr_int	= iofox::unpack_arg<int *>(executor);
+	char & ptr_char	= iofox::unpack_arg<char *>(executor);
 	some_async_operation(executor, ptr_int, ptr_char);
 }
 
