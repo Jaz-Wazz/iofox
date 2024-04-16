@@ -28,7 +28,7 @@
 
 namespace iofox
 {
-	template <class T>
+	template <std::default_initializable T>
 	struct packed_arg
 	{
 		template <class X> static constexpr bool is_applicable_property_v = true;
@@ -38,7 +38,7 @@ namespace iofox
 		T value {};
 	};
 
-	template <boost::asio::execution::executor T, class... Args>
+	template <boost::asio::execution::executor T, std::default_initializable... Args>
 	struct packed_executor: public T
 	{
 		using inner_executor_type = T;
@@ -86,7 +86,7 @@ namespace iofox
 		}
 	};
 
-	template <class T, class... Args>
+	template <boost::asio::execution::executor T, std::default_initializable... Args>
 	packed_executor(T, Args...) -> packed_executor<T, Args...>;
 
 	using any_executor = boost::asio::execution::any_executor
@@ -120,6 +120,22 @@ namespace iofox
 
 TEST_CASE()
 {
+	iofox::packed_arg<int> x;
+	iofox::packed_arg<int *> y;
+	iofox::packed_arg<int &> z;
+
+	iofox::packed_executor<boost::asio::system_executor, int> packed_executor_x;
+	iofox::packed_executor<boost::asio::system_executor, int *> packed_executor_y;
+	iofox::packed_executor<boost::asio::system_executor, int &> packed_executor_z;
+
+	int i = 42;
+	iofox::packed_executor packed_executor_xx {boost::asio::system_executor(), 42};
+	iofox::packed_executor packed_executor_yy {boost::asio::system_executor(), &i};
+	iofox::packed_executor packed_executor_zz {boost::asio::system_executor(), std::ref(i)};
+
+	// iofox::packed_executor packed_executor_xxx {42};
+
+
 	// Construct by reference OR pointer.
 	// iofox::packed_executor packed_executor {ref_a, ref_b, ptr_a, ptr_b};
 
