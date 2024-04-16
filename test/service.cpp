@@ -102,6 +102,13 @@ namespace iofox
 		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
 	> {};
 
+	template <class T, class... Args>
+	concept unpackable_executor = requires(T executor)
+	{
+		requires boost::asio::execution::executor<T>;
+		(boost::asio::query(executor, iofox::packed_arg<Args>()), ...);
+	};
+
 	template <class T>
 	inline T & unpack_arg(const boost::asio::execution::executor auto & executor)
 	{
@@ -116,10 +123,30 @@ namespace iofox
 	}
 }
 
+template <boost::asio::execution::executor T>
+void some_async_operation(const T & executor, int value_int, char value_char)
+{
+	fmt::print("[some_async_operation] - int: '{}', char: '{}'.\n", value_int, value_char);
+}
+
+template <iofox::unpackable_executor<int *, char *> T>
+void some_async_operation(const T & executor)
+{
+	int & ptr_int	= iofox::unpack_arg<int>(executor);
+	char & ptr_char	= iofox::unpack_arg<char>(executor);
+	some_async_operation(executor, ptr_int, ptr_char);
+}
+
 TEST_CASE()
 {
-	int i = 10;
-	auto packed_executor	= iofox::make_packed_executor(boost::asio::system_executor(), i);
-	auto & value			= iofox::unpack_arg<int>(packed_executor);
-	fmt::print("value: '{}'.\n", value);
+	// Values.
+	int value_int = 10;
+	char value_char = 'a';
+
+	// Make packed executor.
+	auto packed_executor = iofox::make_packed_executor(boost::asio::system_executor(), value_int, value_char);
+
+	// Invoke async operation.
+	some_async_operation(boost::asio::system_executor(), value_int, value_char);
+	some_async_operation(packed_executor);
 }
