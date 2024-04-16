@@ -116,10 +116,11 @@ namespace iofox
 		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
 	}
 
-	template <boost::asio::execution::executor T, std::default_initializable... Args>
-	inline auto make_packed_executor(const T & executor, Args &... args)
+	template <boost::asio::execution::executor T, class... Args>
+	inline auto make_packed_executor(const T & executor, Args &&... args)
 	{
-		return iofox::packed_executor<T, Args *...>(executor, &args...);
+		auto transform = []<class X>(X && arg) { if constexpr(std::is_lvalue_reference_v<X>) return &arg; else return arg; };
+		return iofox::packed_executor(executor, transform(std::forward<Args>(args))...);
 	}
 }
 
@@ -144,7 +145,7 @@ TEST_CASE()
 	char value_char = 'a';
 
 	// Make packed executor.
-	auto packed_executor = iofox::make_packed_executor(boost::asio::system_executor(), value_int, value_char);
+	auto packed_executor = iofox::make_packed_executor(boost::asio::system_executor(), value_int, value_char, 42);
 
 	// Invoke async operation.
 	some_async_operation(boost::asio::system_executor(), value_int, value_char);
