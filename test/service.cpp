@@ -108,14 +108,18 @@ namespace iofox
 		T * ptr = boost::asio::query(executor, iofox::packed_arg<T *>());
 		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
 	}
+
+	template <boost::asio::execution::executor T, std::default_initializable... Args>
+	inline auto make_packed_executor(const T & executor, Args &... args)
+	{
+		return iofox::packed_executor<T, Args *...>(executor, &args...);
+	}
 }
 
 TEST_CASE()
 {
 	int i = 10;
-	iofox::packed_executor packed_executor {boost::asio::system_executor(), &i};
-	iofox::any_executor any_executor {packed_executor};
-	auto * value_x = boost::asio::query(any_executor, iofox::packed_arg<int *>());
-	auto & value_y = iofox::unpack_arg<int>(any_executor);
-	fmt::print("values: '{}', '{}'.\n", *value_x, value_y);
+	auto packed_executor	= iofox::make_packed_executor(boost::asio::system_executor(), i);
+	auto & value			= iofox::unpack_arg<int>(packed_executor);
+	fmt::print("value: '{}'.\n", value);
 }
