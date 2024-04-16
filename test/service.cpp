@@ -89,7 +89,7 @@ namespace iofox
 	template <boost::asio::execution::executor T, std::default_initializable... Args>
 	packed_executor(T, Args...) -> packed_executor<T, Args...>;
 
-	using any_executor = boost::asio::execution::any_executor
+	struct any_executor: boost::asio::execution::any_executor
 	<
 		boost::asio::execution::context_as_t<boost::asio::execution_context&>,
 		boost::asio::execution::blocking_t::never_t,
@@ -100,110 +100,13 @@ namespace iofox
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
 		boost::asio::execution::prefer_only<iofox::packed_arg<int *>>,
 		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
-	>;
-
-	struct custom_any_executor: iofox::any_executor
-	{
-		template <class T>
-		auto & query(const iofox::packed_arg<T> & property) const
-		{
-			auto * ptr = boost::asio::query(static_cast<iofox::any_executor>(*this), property);
-			return (ptr != nullptr) ? *ptr : throw std::runtime_error("bad_property_access");
-		}
-
-		decltype(auto) query(const auto & property) const
-		{
-			return boost::asio::query(static_cast<iofox::any_executor>(*this), property);
-		}
-	};
+	> {};
 }
 
 TEST_CASE()
 {
-	iofox::packed_arg<int> x;
-	iofox::packed_arg<int *> y;
-	iofox::packed_arg<int &> z;
-
-	iofox::packed_executor<boost::asio::system_executor, int> packed_executor_x;
-	iofox::packed_executor<boost::asio::system_executor, int *> packed_executor_y;
-	iofox::packed_executor<boost::asio::system_executor, int &> packed_executor_z;
-
-	int i = 42;
-	iofox::packed_executor packed_executor_xx {boost::asio::system_executor(), 42};
-	iofox::packed_executor packed_executor_yy {boost::asio::system_executor(), &i};
-	iofox::packed_executor packed_executor_zz {boost::asio::system_executor(), std::ref(i)};
-
-	// iofox::packed_executor packed_executor_xxx {42};
-
-
-	// Construct by reference OR pointer.
-	// iofox::packed_executor packed_executor {ref_a, ref_b, ptr_a, ptr_b};
-
-	// Set by reference OR pointer.
-	// boost::asio::require(packed_executor, iofox::packed_arg<int &>(ref_a));
-	// boost::asio::require(packed_executor, iofox::packed_arg<int *>(ptr_a));
-
-	// Get by reference OR pointer.
-	// auto ref_a = boost::asio::query(packed_executor, iofox::packed_arg<int &>());
-	// auto ptr_a = boost::asio::query(packed_executor, iofox::packed_arg<int *>());
-	// ...
-	// auto value = boost::asio::query(packed_executor, iofox::packed_arg<int>());
-
-	// reference_arg<int>
-	// value_arg<int>
-	// pointer_argt<int>
-
-	// packed_value
-	// packed_referece
-	// packed_pointer
-
-	// - Хранилище уникальных типов, но они DefaultInitializable. (some value and pointers)
-	// - Хранилище уникальных ссылок и указателей.
-
-	// - Значение, но оно должно быть DefaultInitializable.	(В случае отсутсвия: Значение по умолчанию.)
-	// - Указатель.											(В случае отсутсвия: Указатель на nullptr.)
-	// - Ссылку.											(В случае отсутсвия: Exception.)
-
-	// retry_handler - Спортный момент.
-	// Он должен быть ОДНОГО ТИПА, для использования как iofox::packed_arg<T>.
-	// А может он быть:
-	// - Function ptr with void() signature.
-	// - Function ptr with void(auto handler) signature.
-	// - Callable (lambd) with with void() signature.
-	// - Callable (lambd) with void(auto handler) signature.
-	// - Каллабля или фонкщшон поинтер с void() но с возвратом -> iofox::coro
-
-	// Внутри - указатели, Снаружи - ссылки.
-	// Внутри - значения, Снаружи значения.
-
-	// iofox::ssl_context ssl_contex;
-	// iofox::dns_resolver dns_resolver;
-	// iofox::steady_timer steady_timer;
-	// ...
-	// iofox::packed_executor packed_executor {boost::asio::system_executor(), ssl_context, dns_resolver, steady_timer};
-	// ...
-	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context &>());
-
-	// iofox::ssl_context ssl_contex;
-	// iofox::dns_resolver dns_resolver;
-	// iofox::steady_timer steady_timer;
-	// ...
-	// iofox::packed_executor packed_executor {boost::asio::system_executor(), &ssl_context, &dns_resolver, &steady_timer};
-	// ...
-	// auto * value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context *>());
-
-	// iofox::ssl_context ssl_contex;
-	// iofox::dns_resolver dns_resolver;
-	// iofox::steady_timer steady_timer;
-	// ...
-	// iofox::packed_executor packed_executor {boost::asio::system_executor(), ssl_context, dns_resolver, steady_timer};
-	// ...
-	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context &>());
-	// auto & value = boost::asio::query(packed_executor, iofox::packed_arg<ssl_context *>());
-
 	int i = 10;
 	iofox::packed_executor packed_executor {boost::asio::system_executor(), &i};
-	iofox::custom_any_executor custom_any_executor {packed_executor};
-	auto & value_x	= boost::asio::query(custom_any_executor, iofox::packed_arg<int *>());
-	auto & value_y	= boost::asio::query(custom_any_executor, boost::asio::execution::context);
+	iofox::any_executor any_executor {packed_executor};
+	auto * value_x = boost::asio::query(any_executor, iofox::packed_arg<int *>());
 }
