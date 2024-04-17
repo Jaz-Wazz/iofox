@@ -28,49 +28,57 @@
 
 namespace iofox
 {
-	template <std::default_initializable T>
+	template <class T>
 	struct packed_arg
 	{
 		template <class X> static constexpr bool is_applicable_property_v = true;
 		static constexpr bool is_preferable = true;
 		static constexpr bool is_requirable = true;
-		using polymorphic_query_result_type = T;
-		T value {};
+		using polymorphic_query_result_type = T *;
+		T * ptr = nullptr;
+		packed_arg() = default;
+		packed_arg(T & ref): ptr(&ref) {}
 	};
 
-	template <boost::asio::execution::executor T, std::default_initializable... Args>
+	template <boost::asio::execution::executor T, class... Args>
 	struct packed_executor: public T
 	{
 		using inner_executor_type = T;
 		T get_inner_executor() const noexcept { return *this; }
-		std::tuple<Args...> packed_args;
+		std::tuple<Args &...> packed_args;
 
 		packed_executor() = default;
 		packed_executor(const T & executor): T(executor) {}
 
-		packed_executor(const T & executor, Args... args) requires (sizeof...(Args) > 0)
-		: T(executor), packed_args(std::make_tuple(args...)) {}
+		packed_executor(const T & executor, Args &... args) requires (sizeof...(Args) > 0)
+		: T(executor), packed_args(std::forward_as_tuple(args...)) {}
 
-		template <class... AnotherArgs>
-		packed_executor(const packed_executor<T, AnotherArgs...> & other): T(other.get_inner_executor())
+		// template <class... XArgs, class... YArgs>
+		// packed_executor(const packed_executor<T, XArgs...> & packed_executor, YArgs &... args): T(packed_executor.get_inner_executor())
+		// {
+		// 	auto x = boost::asio::require(packed_executor, iofox::packed_arg(args)...);
+		// 	auto assign = [&](auto & arg){ arg = std::get<std::decay_t<decltype(arg)>>(other.packed_args); };
+		// 	std::apply([&](auto &... arg){ (assign(arg), ...); }, packed_args);
+		// }
+
+		template <class X> requires (std::same_as<X, Args> || ...)
+		X * query(const iofox::packed_arg<X> &) const
 		{
-			auto assign = [&](auto & arg){ arg = std::get<std::decay_t<decltype(arg)>>(other.packed_args); };
-			std::apply([&](auto &... arg){ (assign(arg), ...); }, packed_args);
+			return &std::get<X &>(packed_args);
 		}
 
-		template <class X>
-		auto query(const iofox::packed_arg<X> &) const requires (std::same_as<X, Args> || ...)
+		template <class X> requires (std::same_as<X, Args> || ...)
+		auto require(const iofox::packed_arg<X> & packed_arg) const
 		{
-			return std::get<X>(packed_args);
+			auto transform = [&]<class U>(U & arg) -> auto & { if constexpr(std::same_as<U, X>) return *packed_arg.ptr; else return arg; };
+			return std::apply([&](auto &... args) { return packed_executor(static_cast<T>(*this), transform(args)...); }, packed_args);
 		}
 
-		template <class X>
-		auto require(const iofox::packed_arg<X> & packed_arg) const requires (std::same_as<X, Args> || ...)
-		{
-			packed_executor<T, Args...> executor = *this;
-			std::get<X>(executor.packed_args) = packed_arg.value;
-			return executor;
-		}
+		// template <class X> requires (!std::same_as<X, Args> && ...)
+		// auto require(const iofox::packed_arg<X> & packed_arg) const
+		// {
+		// 	return std::apply([&](auto &... args) { return iofox::packed_executor(static_cast<T>(*this), args..., *packed_arg.ptr); }, packed_args);
+		// }
 
 		decltype(auto) query(const auto & property) const requires boost::asio::can_query_v<T, decltype(property)>
 		{
@@ -79,15 +87,12 @@ namespace iofox
 
 		decltype(auto) require(const auto & property) const requires boost::asio::can_require_v<T, decltype(property)>
 		{
-			auto underlying_executor = boost::asio::require(get_inner_executor(), property);
-			packed_executor<decltype(underlying_executor), Args...> executor {underlying_executor};
-			executor.packed_args = packed_args;
-			return executor;
+			return std::apply([&](auto &... args)
+			{
+				return iofox::packed_executor(boost::asio::require(get_inner_executor(), property), args...);
+			}, packed_args);
 		}
 	};
-
-	template <boost::asio::execution::executor T, std::default_initializable... Args>
-	packed_executor(T, Args...) -> packed_executor<T, Args...>;
 
 	struct any_executor: boost::asio::execution::any_executor
 	<
@@ -98,8 +103,8 @@ namespace iofox
 		boost::asio::execution::prefer_only<boost::asio::execution::outstanding_work_t::untracked_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::fork_t>,
 		boost::asio::execution::prefer_only<boost::asio::execution::relationship_t::continuation_t>,
-		boost::asio::execution::prefer_only<iofox::packed_arg<int *>>,
-		boost::asio::execution::prefer_only<iofox::packed_arg<char *>>
+		boost::asio::execution::prefer_only<iofox::packed_arg<int>>,
+		boost::asio::execution::prefer_only<iofox::packed_arg<char>>
 	> {};
 
 	template <class T, class... Args>
@@ -110,21 +115,10 @@ namespace iofox
 	};
 
 	template <class T, iofox::unpackable_executor<T> E>
-	inline decltype(auto) unpack_arg(const E & executor)
+	inline T & unpack_arg(const E & executor)
 	{
-		if constexpr(std::is_pointer_v<T>)
-		{
-			auto * ptr = boost::asio::query(executor, iofox::packed_arg<T>());
-			return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
-		}
-		else return boost::asio::query(executor, iofox::packed_arg<T>());
-	}
-
-	template <boost::asio::execution::executor T, class... Args>
-	inline auto make_packed_executor(const T & executor, Args &&... args)
-	{
-		auto transform = []<class X>(X && arg) { if constexpr(std::is_lvalue_reference_v<X>) return &arg; else return arg; };
-		return iofox::packed_executor(executor, transform(std::forward<Args>(args))...);
+		auto * ptr = boost::asio::query(executor, iofox::packed_arg<T>());
+		return (ptr != nullptr) ? *ptr : throw std::runtime_error("err");
 	}
 }
 
@@ -134,13 +128,12 @@ void some_async_operation(const T & executor, int value_int, char value_char)
 	fmt::print("[some_async_operation] - int: '{}', char: '{}'.\n", value_int, value_char);
 }
 
-template <iofox::unpackable_executor<int *, char *, int> T>
+template <iofox::unpackable_executor<int, char> T>
 void some_async_operation(const T & executor)
 {
-	int val_int		= iofox::unpack_arg<int>(executor);
-	int & ptr_int	= iofox::unpack_arg<int *>(executor);
-	char & ptr_char	= iofox::unpack_arg<char *>(executor);
-	some_async_operation(executor, ptr_int, ptr_char);
+	int & ref_int	= iofox::unpack_arg<int>(executor);
+	char & ref_char	= iofox::unpack_arg<char>(executor);
+	some_async_operation(executor, ref_int, ref_char);
 }
 
 TEST_CASE()
@@ -150,9 +143,13 @@ TEST_CASE()
 	char value_char = 'a';
 
 	// Make packed executor.
-	auto packed_executor = iofox::make_packed_executor(boost::asio::system_executor(), value_int, value_char, 42);
+	iofox::packed_executor packed_executor {boost::asio::system_executor(), value_int, value_char};
+
+	// Make any executor.
+	iofox::any_executor any_executor {packed_executor};
 
 	// Invoke async operation.
 	some_async_operation(boost::asio::system_executor(), value_int, value_char);
 	some_async_operation(packed_executor);
+	some_async_operation(any_executor);
 }
