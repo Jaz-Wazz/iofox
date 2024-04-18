@@ -28,6 +28,9 @@
 
 namespace iofox
 {
+	template <class T, class... Args>
+	concept any_of = (std::same_as<T, Args> || ...);
+
 	template <class T>
 	struct packed_arg
 	{
@@ -61,13 +64,13 @@ namespace iofox
 		// 	std::apply([&](auto &... arg){ (assign(arg), ...); }, packed_args);
 		// }
 
-		template <class X> requires (std::same_as<X, Args> || ...)
+		template <iofox::any_of<Args...> X>
 		X * query(const iofox::packed_arg<X> &) const
 		{
 			return &std::get<X &>(packed_args);
 		}
 
-		template <class X> requires (std::same_as<X, Args> || ...)
+		template <iofox::any_of<Args...> X>
 		auto require(const iofox::packed_arg<X> & packed_arg) const
 		{
 			auto transform = [&]<class U>(U & arg) -> auto & { if constexpr(std::same_as<U, X>) return *packed_arg.ptr; else return arg; };
