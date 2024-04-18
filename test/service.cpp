@@ -31,6 +31,9 @@ namespace iofox
 	template <class T, class... Args>
 	concept any_of = (std::same_as<T, Args> || ...);
 
+	template <class T, class... Args>
+	concept none_of = (!std::same_as<T, Args> && ...);
+
 	template <class T>
 	struct packed_arg
 	{
@@ -77,11 +80,11 @@ namespace iofox
 			return std::apply([&](auto &... args) { return packed_executor(static_cast<T>(*this), transform(args)...); }, packed_args);
 		}
 
-		// template <class X> requires (!std::same_as<X, Args> && ...)
-		// auto require(const iofox::packed_arg<X> & packed_arg) const
-		// {
-		// 	return std::apply([&](auto &... args) { return iofox::packed_executor(static_cast<T>(*this), args..., *packed_arg.ptr); }, packed_args);
-		// }
+		template <iofox::none_of<Args...> X>
+		auto require(const iofox::packed_arg<X> & packed_arg) const
+		{
+			return std::apply([&](auto &... args) { return iofox::packed_executor(static_cast<T>(*this), args..., *packed_arg.ptr); }, packed_args);
+		}
 
 		decltype(auto) query(const auto & property) const requires boost::asio::can_query_v<T, decltype(property)>
 		{
@@ -144,13 +147,11 @@ TEST_CASE()
 	char value_char = 'a';
 
 	// Make packed executor.
-	iofox::packed_executor packed_executor {boost::asio::system_executor(), value_int, value_char};
+	iofox::packed_executor packed_executor {boost::asio::system_executor(), value_int};
 
-	// Make any executor.
-	iofox::any_executor any_executor {packed_executor};
+	// Pack values.
+	auto new_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(value_int), iofox::packed_arg<char>(value_char));
 
 	// Invoke async operation.
-	some_async_operation(boost::asio::system_executor(), value_int, value_char);
-	some_async_operation(packed_executor);
-	some_async_operation(any_executor);
+	some_async_operation(new_executor);
 }
