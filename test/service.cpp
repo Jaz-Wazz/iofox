@@ -87,10 +87,8 @@ namespace iofox
 
 		decltype(auto) require(const auto & property) const requires boost::asio::can_require_v<T, decltype(property)>
 		{
-			return std::apply([&](auto &... args)
-			{
-				return iofox::packed_executor(boost::asio::require(get_inner_executor(), property), args...);
-			}, packed_args);
+			auto executor = boost::asio::require(get_inner_executor(), property);
+			return std::apply([&](auto &... args){ return iofox::packed_executor(executor, args...); }, packed_args);
 		}
 	};
 
