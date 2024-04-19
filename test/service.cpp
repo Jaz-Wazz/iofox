@@ -53,13 +53,17 @@ namespace iofox
 	struct packed_executor: public T
 	{
 		using inner_executor_type = T;
-		T get_inner_executor() const noexcept { return *this; }
 		std::tuple<Args &...> packed_args;
 
 		packed_executor() requires (!iofox::template_of<T, iofox::packed_executor>) = default;
 
 		packed_executor(const T & executor, Args &... args) requires (!iofox::template_of<T, iofox::packed_executor>)
 		: T(executor), packed_args(std::forward_as_tuple(args...)) {}
+
+		T get_inner_executor() const noexcept
+		{
+			return *this;
+		}
 
 		template <iofox::any_of<Args...> X>
 		X * query(const iofox::packed_arg<X> &) const
@@ -71,13 +75,13 @@ namespace iofox
 		auto require(const iofox::packed_arg<X> & packed_arg) const
 		{
 			auto transform = [&]<class U>(U & arg) -> auto & { if constexpr(std::same_as<U, X>) return *packed_arg.ptr; else return arg; };
-			return std::apply([&](auto &... args) { return packed_executor(static_cast<T>(*this), transform(args)...); }, packed_args);
+			return std::apply([&](auto &... args) { return packed_executor(get_inner_executor(), transform(args)...); }, packed_args);
 		}
 
 		template <iofox::none_of<Args...> X>
 		auto require(const iofox::packed_arg<X> & packed_arg) const
 		{
-			return std::apply([&](auto &... args) { return iofox::packed_executor(static_cast<T>(*this), args..., *packed_arg.ptr); }, packed_args);
+			return std::apply([&](auto &... args) { return iofox::packed_executor(get_inner_executor(), args..., *packed_arg.ptr); }, packed_args);
 		}
 
 		decltype(auto) query(const auto & property) const requires boost::asio::can_query_v<T, decltype(property)>
