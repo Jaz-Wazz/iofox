@@ -54,9 +54,8 @@ namespace iofox
 		std::tuple<Args &...> packed_args;
 
 		packed_executor() = default;
-		packed_executor(const T & executor): T(executor) {}
 
-		packed_executor(const T & executor, Args &... args) requires (sizeof...(Args) > 0)
+		packed_executor(const T & executor, Args &... args)
 		: T(executor), packed_args(std::forward_as_tuple(args...)) {}
 
 		template <iofox::any_of<Args...> X>
@@ -139,10 +138,11 @@ TEST_CASE()
 	char value_char = 'a';
 
 	// Make packed executor.
-	iofox::packed_executor packed_executor {boost::asio::system_executor(), value_int};
+	iofox::packed_executor packed_executor_x {boost::asio::system_executor()};
+	iofox::packed_executor packed_executor_y {boost::asio::system_executor(), value_int};
 
 	// Pack values.
-	auto new_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(value_int), iofox::packed_arg<char>(value_char));
+	auto new_executor = boost::asio::require(packed_executor_y, iofox::packed_arg<int>(value_int), iofox::packed_arg<char>(value_char));
 
 	// Invoke async operation.
 	some_async_operation(new_executor);
