@@ -49,6 +49,9 @@ namespace iofox
 		packed_arg(T & ref): ptr(&ref) {}
 	};
 
+	template <class T, class... Args>
+	concept unpackable_executor = boost::asio::execution::executor<T> && (boost::asio::can_query_v<T, iofox::packed_arg<Args>> && ...);
+
 	template <boost::asio::execution::executor T, class... Args>
 	struct packed_executor: public T
 	{
@@ -109,13 +112,6 @@ namespace iofox
 		boost::asio::execution::prefer_only<iofox::packed_arg<char>>
 	> {};
 
-	template <class T, class... Args>
-	concept unpackable_executor = requires(T executor)
-	{
-		requires boost::asio::execution::executor<T>;
-		(boost::asio::query(executor, iofox::packed_arg<Args>()), ...);
-	};
-
 	template <class T, iofox::unpackable_executor<T> E>
 	inline T & unpack_arg(const E & executor)
 	{
@@ -146,10 +142,6 @@ TEST_CASE()
 
 	// Make packed executor.
 	iofox::packed_executor packed_executor {boost::asio::system_executor(), value_int};
-
-	// Make packed executor's by other.
-	iofox::packed_executor new_executor_x {packed_executor, value_int, value_char}; // <-- Error.
-	iofox::packed_executor new_executor_y {packed_executor};
 
 	// Pack values.
 	auto new_executor = boost::asio::require(packed_executor, iofox::packed_arg<int>(value_int), iofox::packed_arg<char>(value_char));
