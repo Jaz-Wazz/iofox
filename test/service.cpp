@@ -59,14 +59,6 @@ namespace iofox
 		packed_executor(const T & executor, Args &... args) requires (sizeof...(Args) > 0)
 		: T(executor), packed_args(std::forward_as_tuple(args...)) {}
 
-		// template <class... XArgs, class... YArgs>
-		// packed_executor(const packed_executor<T, XArgs...> & packed_executor, YArgs &... args): T(packed_executor.get_inner_executor())
-		// {
-		// 	auto x = boost::asio::require(packed_executor, iofox::packed_arg(args)...);
-		// 	auto assign = [&](auto & arg){ arg = std::get<std::decay_t<decltype(arg)>>(other.packed_args); };
-		// 	std::apply([&](auto &... arg){ (assign(arg), ...); }, packed_args);
-		// }
-
 		template <iofox::any_of<Args...> X>
 		X * query(const iofox::packed_arg<X> &) const
 		{
