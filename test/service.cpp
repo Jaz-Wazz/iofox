@@ -16,7 +16,6 @@
 // stl
 #include <concepts> // IWYU pragma: keep
 #include <stdexcept>
-#include <type_traits>
 
 // fmt
 #include <fmt/core.h>
