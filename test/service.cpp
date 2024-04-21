@@ -37,6 +37,12 @@ namespace iofox
 	template <class T, template <class...> class X>
 	concept template_of = requires(T t){ []<class... Args>(X<Args...> &){}(t); };
 
+	template <class T, class E>
+	concept queryable_of = boost::asio::can_query_v<T, E>;
+
+	template <class T, class E>
+	concept requirable_of = boost::asio::can_require_v<T, E>;
+
 	template <class T>
 	struct packed_arg
 	{
@@ -50,7 +56,7 @@ namespace iofox
 	};
 
 	template <class T, class... Args>
-	concept unpackable_executor = boost::asio::execution::executor<T> && (boost::asio::can_query_v<T, iofox::packed_arg<Args>> && ...);
+	concept unpackable_executor = boost::asio::execution::executor<T> && (iofox::queryable_of<T, iofox::packed_arg<Args>> && ...);
 
 	template <boost::asio::execution::executor T, class... Args>
 	struct packed_executor: public T
@@ -87,12 +93,14 @@ namespace iofox
 			return std::apply([&](auto &... args) { return iofox::packed_executor(get_inner_executor(), args..., *packed_arg.ptr); }, packed_args);
 		}
 
-		decltype(auto) query(const auto & property) const requires boost::asio::can_query_v<T, decltype(property)>
+		template <iofox::queryable_of<T> X>
+		decltype(auto) query(const X & property) const
 		{
 			return boost::asio::query(get_inner_executor(), property);
 		}
 
-		decltype(auto) require(const auto & property) const requires boost::asio::can_require_v<T, decltype(property)>
+		template <iofox::requirable_of<T> X>
+		decltype(auto) require(const X & property)
 		{
 			auto executor = boost::asio::require(get_inner_executor(), property);
 			return std::apply([&](auto &... args){ return iofox::packed_executor(executor, args...); }, packed_args);
