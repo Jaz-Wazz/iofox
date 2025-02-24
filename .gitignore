@@ -1,12 +1,3 @@
-# VS Code: Core.
 .vscode/*
-
-# VS Code: ClangD.
 .cache
-
-# CMake.
 build
-
-# Visual Studio.
-.vs
-out
