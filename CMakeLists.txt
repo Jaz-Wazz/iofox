@@ -9,11 +9,13 @@ set_property(TARGET "test" PROPERTY CMAKE_CXX_STANDARD_REQUIRED ON)
 set_property(TARGET "test" PROPERTY CMAKE_CXX_EXTENSIONS OFF)
 
 include("packages/boost.cmake")
+include("packages/fmt.cmake")
 
 target_link_libraries("test" PRIVATE
 	Boost::asio
 	Boost::beast
 	Boost::url
+	fmt::fmt
 	-static
 )
 
