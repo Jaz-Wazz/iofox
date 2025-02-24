@@ -8,4 +8,13 @@ set_property(TARGET "test" PROPERTY CXX_STANDARD 23)
 set_property(TARGET "test" PROPERTY CMAKE_CXX_STANDARD_REQUIRED ON)
 set_property(TARGET "test" PROPERTY CMAKE_CXX_EXTENSIONS OFF)
 
+include("packages/boost.cmake")
+
+target_link_libraries("test" PRIVATE
+	Boost::asio
+	Boost::beast
+	Boost::url
+	-static
+)
+
 target_include_directories("test" PUBLIC "test")
