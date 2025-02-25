@@ -1,0 +1,14 @@
+--- a/libs/asio/include/boost/asio/ssl/detail/impl/engine.ipp
++++ b/libs/asio/include/boost/asio/ssl/detail/impl/engine.ipp
+@@ -337,7 +337,11 @@ engine::want engine::perform(int (engine::* op)(void*, std::size_t),
+   }
+   else
+   {
++#if defined(BOOST_ASIO_USE_WOLFSSL)
++    ec = boost::system::error_code(ssl_error, boost::asio::error::get_ssl_category());
++#else
+     ec = boost::asio::ssl::error::unexpected_result;
++#endif
+     return want_nothing;
+   }
+ }
