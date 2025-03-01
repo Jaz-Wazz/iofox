@@ -21,4 +21,4 @@ target_link_libraries("test" PRIVATE
 	-static
 )
 
-target_include_directories("test" PUBLIC "test")
+target_include_directories("test" PUBLIC "test" "src")
