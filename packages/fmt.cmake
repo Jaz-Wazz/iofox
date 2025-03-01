@@ -6,3 +6,5 @@ CPMAddPackage(
 	VERSION "11.1.3"
 	GIT_TAG "11.1.3"
 )
+
+set_property(TARGET "fmt" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
