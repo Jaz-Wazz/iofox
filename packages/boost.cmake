@@ -28,25 +28,3 @@ target_compile_definitions("boost_asio" INTERFACE
 	BOOST_ASIO_NO_DEPRECATED
 	BOOST_SYSTEM_USE_UTF8
 )
-
-file(GLOB_RECURSE boost_asio_headers
-	"${Boost_SOURCE_DIR}/libs/asio/include/*.hpp"
-	"${Boost_SOURCE_DIR}/libs/asio/include/*.ipp"
-)
-
-file(GLOB_RECURSE boost_beast_headers
-	"${Boost_SOURCE_DIR}/libs/beast/include/*.hpp"
-	"${Boost_SOURCE_DIR}/libs/beast/include/*.ipp"
-)
-
-target_sources("boost_asio" INTERFACE
-	FILE_SET "HEADERS"
-	BASE_DIRS "${Boost_SOURCE_DIR}/libs/asio/include"
-	FILES "${boost_asio_headers}"
-)
-
-target_sources("boost_beast" INTERFACE
-	FILE_SET "HEADERS"
-	BASE_DIRS "${Boost_SOURCE_DIR}/libs/beast/include"
-	FILES "${boost_beast_headers}"
-)
