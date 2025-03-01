@@ -15,3 +15,5 @@ CPMAddPackage(
 
 target_include_directories("wolfssl" PUBLIC "${wolfssl_SOURCE_DIR}/wolfssl")
 target_compile_definitions("wolfssl" PUBLIC HAVE_EMPTY_AGGREGATES=0 WOLFSSL_NO_ASN_STRICT)
+
+set_property(TARGET "wolfssl" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
