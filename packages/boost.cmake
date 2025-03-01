@@ -29,24 +29,7 @@ target_compile_definitions("boost_asio" INTERFACE
 	BOOST_SYSTEM_USE_UTF8
 )
 
-file(GLOB_RECURSE boost_asio_headers
-	"${Boost_SOURCE_DIR}/libs/asio/include/*.hpp"
-	"${Boost_SOURCE_DIR}/libs/asio/include/*.ipp"
-)
-
-file(GLOB_RECURSE boost_beast_headers
-	"${Boost_SOURCE_DIR}/libs/beast/include/*.hpp"
-	"${Boost_SOURCE_DIR}/libs/beast/include/*.ipp"
-)
-
-target_sources("boost_asio" INTERFACE
-	FILE_SET "HEADERS"
-	BASE_DIRS "${Boost_SOURCE_DIR}/libs/asio/include"
-	FILES "${boost_asio_headers}"
-)
-
-target_sources("boost_beast" INTERFACE
-	FILE_SET "HEADERS"
-	BASE_DIRS "${Boost_SOURCE_DIR}/libs/beast/include"
-	FILES "${boost_beast_headers}"
-)
+set_property(TARGET "boost_container" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_date_time" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_context" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_url" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
