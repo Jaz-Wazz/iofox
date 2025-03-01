@@ -28,3 +28,8 @@ target_compile_definitions("boost_asio" INTERFACE
 	BOOST_ASIO_NO_DEPRECATED
 	BOOST_SYSTEM_USE_UTF8
 )
+
+set_property(TARGET "boost_container" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_date_time" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_context" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
+set_property(TARGET "boost_url" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
